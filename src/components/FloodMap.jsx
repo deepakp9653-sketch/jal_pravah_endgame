@@ -91,10 +91,18 @@ export default function FloodMap({ filterRisk, filterType }) {
                 attribution='&copy; OpenStreetMap &copy; CARTO'
               />
             </LayersControl.BaseLayer>
-            <LayersControl.BaseLayer name="🛰️ Satellite">
+            <LayersControl.BaseLayer name="🛰️ Bhuvan Satellite (ISRO)">
               <TileLayer
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                attribution='&copy; Esri, Maxar, Earthstar Geographics'
+                url="https://bhuvan-vec2.nrsc.gov.in/bhuvan/tms/1.0.0/bhuvan_imagery@EPSG:900913@jpg/{z}/{x}/{y}.jpg"
+                attribution='&copy; ISRO Bhuvan'
+                tms={true}
+              />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer name="🛰️ Bhuvan Hybrid (ISRO)">
+              <TileLayer
+                url="https://bhuvan-vec2.nrsc.gov.in/bhuvan/tms/1.0.0/bhuvan_hybrid@EPSG:900913@png/{z}/{x}/{y}.png"
+                attribution='&copy; ISRO Bhuvan'
+                tms={true}
               />
             </LayersControl.BaseLayer>
             <LayersControl.BaseLayer name="⛰️ Terrain">

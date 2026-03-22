@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
 import './index.css';
 import IntroPage from './components/IntroPage';
 import HomePage from './components/HomePage';
@@ -15,6 +15,11 @@ export default function App() {
   const [showApp, setShowApp] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [alertLevel, setAlertLevel] = useState('moderate');
+  const [theme, setTheme] = useState('light');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   if (!showApp) {
     return <IntroPage onStart={() => setShowApp(true)} />;
@@ -31,10 +36,18 @@ export default function App() {
           <NavLink to="/" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`} end>🗺️ Flood Map</NavLink>
           <NavLink to="/pmrs" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>📊 PMRS</NavLink>
           <NavLink to="/predictor" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🤖 AI Predictor</NavLink>
+          <NavLink to="/risk" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>📍 My Risk</NavLink>
           <NavLink to="/report" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>📝 Report Issue</NavLink>
           <NavLink to="/history" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>📈 Historical</NavLink>
           <NavLink to="/admin" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🔐 Admin</NavLink>
+          
+          <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} 
+            className="nav-link" style={{ background: 'var(--bg-glass)', border: `1px solid var(--border)`, cursor: 'pointer', borderRadius: '50px' }}>
+            {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
+          </button>
+          <div id="google_translate_element" style={{ marginLeft: '0.2rem' }}></div>
         </div>
+        
         <button className="nav-emergency-btn" onClick={() => document.getElementById('sos-btn')?.click()}>
           🆘 SOS
         </button>
