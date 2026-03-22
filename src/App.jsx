@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HashRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import './index.css';
 import IntroPage from './components/IntroPage';
 import HomePage from './components/HomePage';
@@ -66,6 +66,7 @@ export default function App() {
           <Route path="/report" element={<CitizenReport />} />
           <Route path="/history" element={<HistoricalData />} />
           <Route path="/admin" element={<AdminPanel />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
 
