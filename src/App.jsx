@@ -11,6 +11,7 @@ import HistoricalData from './components/HistoricalData';
 import EmergencyButton from './components/EmergencyButton';
 import AlertBanner from './components/AlertBanner';
 import CitizenRisk from './components/CitizenRisk';
+import { refreshMLParams } from './utils/floodML';
 
 export default function App() {
   const [showApp, setShowApp] = useState(false);
@@ -21,6 +22,11 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Sync Supabase ML parameters on app load
+  useEffect(() => {
+    refreshMLParams();
+  }, []);
 
   if (!showApp) {
     return <IntroPage onStart={() => setShowApp(true)} />;
@@ -46,7 +52,10 @@ export default function App() {
             className="nav-link" style={{ background: 'var(--bg-glass)', border: `1px solid var(--border)`, cursor: 'pointer', borderRadius: '50px' }}>
             {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
           </button>
-          <div id="google_translate_element" style={{ marginLeft: '0.2rem' }}></div>
+          <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-glass)', border: '1px solid var(--border)', borderRadius: '50px', padding: '0.1rem 0.5rem', marginLeft: '0.5rem' }}>
+            <span style={{ marginRight: '0.4rem', fontSize: '1.2rem' }}>🌐</span>
+            <div id="google_translate_element" style={{ overflow: 'hidden' }}></div>
+          </div>
         </div>
         
         <button className="nav-emergency-btn" onClick={() => document.getElementById('sos-btn')?.click()}>

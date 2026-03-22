@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { drains } from '../data/drains';
-
-const ADMIN_PASSWORD = 'JalPravah';
+import { districts } from '../data/hotspots';
+import { supabase } from '../utils/supabase';
 
 const mockReports = [
   { id: 1, category: 'Waterlogging', location: 'Minto Bridge, Central Delhi', severity: 'High', status: 'Pending', timestamp: '21/03/2026, 14:30', district: 'Central' },
@@ -24,7 +24,8 @@ const mockCalls = [
 
 const sidebarItems = [
   { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-  { id: 'drainage', icon: '🏗️', label: 'Drainage Infrastructure' },
+  { id: 'ml_params', icon: '⚙️', label: 'Drainage & ML Params' },
+  { id: 'officers', icon: '👮', label: 'Ward Officers' },
   { id: 'reports', icon: '📝', label: 'Citizen Reports' },
   { id: 'alerts', icon: '🚨', label: 'Alert History' },
   { id: 'calls', icon: '📞', label: 'Emergency Calls' },
@@ -32,30 +33,68 @@ const sidebarItems = [
 
 export default function AdminPanel() {
   const [loggedIn, setLoggedIn] = useState(false);
+  const [ward, setWard] = useState('Central');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loadingLogin, setLoadingLogin] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [drainFilter, setDrainFilter] = useState('all');
+  
+  // Dynamic Supabase Auth State
+  const [wardParams, setWardParams] = useState(null);
+  const [officers, setOfficers] = useState([]);
 
-  const handleLogin = (e) => {
+  const loadOfficers = async (selectedWard) => {
+    const { data } = await supabase.from('officers').select('*').eq('ward_id', selectedWard);
+    if (data) setOfficers(data);
+  };
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (password === ADMIN_PASSWORD) setLoggedIn(true);
-    else { setError('Incorrect password. Try: JalPravah'); setPassword(''); }
+    setLoadingLogin(true);
+    setError('');
+    
+    // Auth against Supabase wards table
+    const { data, error: dbErr } = await supabase
+      .from('wards')
+      .select('*')
+      .eq('id', ward)
+      .eq('passcode', password)
+      .single();
+      
+    setLoadingLogin(false);
+    
+    if (data) {
+      setLoggedIn(true);
+      setWardParams(data);
+      loadOfficers(ward);
+    } else {
+      if (dbErr && dbErr.message) {
+        setError(`DB Error: ${dbErr.message} (Did you disable RLS?)`);
+      } else {
+        setError('Incorrect passcode for this ward.');
+      }
+      setPassword('');
+    }
   };
 
   if (!loggedIn) return (
     <div className="login-overlay">
       <div className="login-card">
         <div className="login-icon">🔐</div>
-        <h2 className="login-title">Admin Access</h2>
-        <p className="login-subtitle">Ward Administrator Portal — Jal Pravah Flood Management System</p>
+        <h2 className="login-title">Ward Admin Access</h2>
+        <p className="login-subtitle">Jal Pravah Flood Management System</p>
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <input type="password" className="form-input" placeholder="Enter admin password"
+          <select className="form-input" value={ward} onChange={e => setWard(e.target.value)}>
+            {districts.map(d => <option key={d.name} value={d.name}>{d.name} Ward</option>)}
+          </select>
+          <input type="password" className="form-input" placeholder="Enter secure passcode"
             value={password} onChange={e => setPassword(e.target.value)} style={{ textAlign: 'center', letterSpacing: '0.2em' }} />
-          {error && <p className="login-error">{error}</p>}
-          <button type="submit" className="btn btn-primary btn-full" style={{ padding: '0.9rem', borderRadius: '12px' }}>🔓 Login</button>
+          {error && <p className="login-error" style={{ color: '#EF4444', fontSize: '0.85rem' }}>{error}</p>}
+          <button type="submit" className="btn btn-primary btn-full" disabled={loadingLogin} style={{ padding: '0.9rem', borderRadius: '12px' }}>
+            {loadingLogin ? 'Verifying...' : '🔓 Login'}
+          </button>
         </form>
-        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1.5rem' }}>Authorised personnel only. All access is logged.</p>
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1.5rem' }}>Authorised personnel only.</p>
       </div>
     </div>
   );
@@ -109,29 +148,92 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {activeTab === 'drainage' && (
+        {activeTab === 'ml_params' && (
           <div>
-            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Drainage Infrastructure</h2>
-            <p className="section-subtitle">All 56 major drains from FCO 2025 — Annexure B</p>
-            <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap', marginBottom:'1rem' }}>
-              {['all','Alipur','Kanjhawala','Najafgarh','Trans Yamuna','Mehrauli','Functional','Partial','Blocked'].map(f => (
-                <button key={f} className={`district-chip ${drainFilter === f ? 'active' : ''}`} onClick={() => setDrainFilter(f.toLowerCase() === f ? f : f)}>{f}</button>
-              ))}
+            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>ML Drainage Parameters</h2>
+            <p className="section-subtitle">Real-time variables used by the AI Predictor for {ward} Ward</p>
+            
+            <div className="glass-card" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'grid', gap: '1.5rem' }}>
+                <div>
+                  <label style={{ display:'block', fontSize:'0.85rem', fontWeight:600, color:'var(--text-secondary)', marginBottom:'0.5rem' }}>Drain Capacity Override (m³/s)</label>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Update this if major desilting or widening occurs. Higher capacity safely handles more intense rainfall. Leave blank to use default.</div>
+                  <div style={{ display:'flex', gap:'0.5rem' }}>
+                    <input id="ml-drain-cap" type="number" className="form-input" defaultValue={wardParams?.drain_capacity_m3s || ''} placeholder="e.g. 250" style={{ maxWidth: '200px' }} />
+                    <button className="btn btn-outline" onClick={async () => {
+                       const val = parseInt(document.getElementById('ml-drain-cap').value);
+                       if(!isNaN(val) || document.getElementById('ml-drain-cap').value === '') {
+                         await supabase.from('wards').update({ drain_capacity_m3s: isNaN(val) ? null : val }).eq('id', ward);
+                         alert('Drainage capacity updated! ML Predictor will now use this value.');
+                       }
+                    }}>Update</button>
+                  </div>
+                </div>
+                
+                <div>
+                  <label style={{ display:'block', fontSize:'0.85rem', fontWeight:600, color:'var(--text-secondary)', marginBottom:'0.5rem' }}>Impervious Area Override (%)</label>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Percentage of concretized land. Reducing this (via greening projects) lowers flash flood risk. Leave blank to use default.</div>
+                  <div style={{ display:'flex', gap:'0.5rem' }}>
+                    <input id="ml-imp-pct" type="number" className="form-input" defaultValue={wardParams?.impervious_pct || ''} placeholder="e.g. 75" style={{ maxWidth: '200px' }} />
+                    <button className="btn btn-outline" onClick={async () => {
+                       const val = parseInt(document.getElementById('ml-imp-pct').value);
+                       if(!isNaN(val) || document.getElementById('ml-imp-pct').value === '') {
+                         await supabase.from('wards').update({ impervious_pct: isNaN(val) ? null : val }).eq('id', ward);
+                         alert('Impervious percentage updated! ML Predictor will now use this value.');
+                       }
+                    }}>Update</button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="glass-card" style={{ padding: 0, overflow: 'auto' }}>
+            <div className="alert-banner moderate" style={{ marginTop: '1rem', position: 'relative', width: 'auto' }}>
+              <span className="alert-icon">💡</span>
+              <span className="alert-text">Any numeric changes applied here are <b>immediately synced</b> to the ML Predictor across all public-facing apps.</span>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'officers' && (
+          <div>
+            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Ward Officers</h2>
+            <p className="section-subtitle">Manage emergency contact personnel for {ward} Ward</p>
+            <div className="glass-card" style={{ padding: '1.25rem', marginBottom: '1rem' }}>
+              <div style={{ fontFamily:'Inter', fontWeight:600, marginBottom:'0.75rem' }}>➕ Add New Officer</div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                 <input id="new-officer-name" className="form-input" placeholder="Name" style={{ flex: 1, minWidth: '150px' }} />
+                 <input id="new-officer-phone" className="form-input" placeholder="Phone" style={{ flex: 1, minWidth: '150px' }} />
+                 <input id="new-officer-role" className="form-input" placeholder="Role (e.g. Inspector)" style={{ flex: 1, minWidth: '150px' }} />
+                 <button className="btn btn-primary" onClick={async () => {
+                     const n = document.getElementById('new-officer-name').value;
+                     const p = document.getElementById('new-officer-phone').value;
+                     const r = document.getElementById('new-officer-role').value;
+                     if(n && p) {
+                       const { error } = await supabase.from('officers').insert([{ ward_id: ward, name: n, phone_number: p, role: r }]);
+                       if(!error) loadOfficers(ward);
+                       document.getElementById('new-officer-name').value = '';
+                       document.getElementById('new-officer-phone').value = '';
+                       document.getElementById('new-officer-role').value = '';
+                     }
+                 }}>Add Officer</button>
+              </div>
+            </div>
+            
+            <div className="glass-card" style={{ padding:0, overflow:'auto' }}>
               <table className="data-table">
-                <thead><tr><th>#</th><th>Drain Name</th><th>Block</th><th>Length (km)</th><th>Discharge (cusecs)</th><th>Status</th></tr></thead>
+                <thead><tr><th>Name</th><th>Role</th><th>Phone Number</th><th>Action</th></tr></thead>
                 <tbody>
-                  {filteredDrains.map(d => (
-                    <tr key={d.id}>
-                      <td style={{ color:'var(--text-muted)' }}>{d.id}</td>
-                      <td style={{ fontWeight:500 }}>{d.name}</td>
-                      <td><span style={{ fontSize:'0.78rem', color:'var(--primary-light)' }}>{d.block}</span></td>
-                      <td>{d.length}</td>
-                      <td>{d.discharge?.toLocaleString() || '—'}</td>
-                      <td><span className={`status-pill ${d.status.toLowerCase()}`}>{d.status}</span></td>
+                  {officers.map(o => (
+                    <tr key={o.id}>
+                      <td style={{ fontWeight: 500 }}>{o.name}</td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{o.role || '—'}</td>
+                      <td>{o.phone_number}</td>
+                      <td><button className="btn btn-outline" style={{ padding:'0.2rem 0.5rem', fontSize:'0.75rem', borderColor: '#EF4444', color: '#EF4444' }} onClick={async () => {
+                         await supabase.from('officers').delete().eq('id', o.id);
+                         loadOfficers(ward);
+                      }}>Remove</button></td>
                     </tr>
                   ))}
+                  {officers.length === 0 && <tr><td colSpan="4" style={{ textAlign:'center', color:'var(--text-muted)' }}>No officers registered for this ward yet.</td></tr>}
                 </tbody>
               </table>
             </div>

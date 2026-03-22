@@ -14,10 +14,12 @@
  * Output: 7-day flood probability array [0–100] per district
  */
 
+import { supabase } from './supabase';
+
 // ============================================================
-//  FCO 2025 DISTRICT DATA (Real Parameters)
+//  FCO 2025 DISTRICT DATA (Baseline Default Parameters)
 // ============================================================
-const DISTRICT_DATA = {
+const DEFAULT_DISTRICT_DATA = {
   'Central': {
     drainCount: 8, drainLengthKm: 42.5, pumpingStations: 3,
     avgSlope: 0.15, imperviousPct: 92, elevation_m: 215,
@@ -108,6 +110,33 @@ const DISTRICT_DATA = {
     populationDensity: 34200,
   },
 };
+
+export let ACTIVE_DISTRICT_DATA = JSON.parse(JSON.stringify(DEFAULT_DISTRICT_DATA));
+
+/**
+ * Fetches ward-level overrides from Supabase.
+ * Allows Admin panel updates to instantly affect all AI predictions site-wide.
+ */
+export async function refreshMLParams() {
+  try {
+    const { data, error } = await supabase.from('wards').select('*');
+    if (!error && data) {
+      data.forEach(override => {
+        if (ACTIVE_DISTRICT_DATA[override.id]) {
+          if (override.drain_capacity_m3s !== null) {
+            ACTIVE_DISTRICT_DATA[override.id].drainCapacityM3s = override.drain_capacity_m3s;
+          }
+          if (override.impervious_pct !== null) {
+            ACTIVE_DISTRICT_DATA[override.id].imperviousPct = override.impervious_pct;
+          }
+        }
+      });
+      console.log('JAL PRAVAH ML Engine: Live parameters synced from Supabase.');
+    }
+  } catch (err) {
+    console.error('Failed to sync ML params from Supabase:', err);
+  }
+}
 
 // ============================================================
 //  ML MODEL — RAINFALL-GATED ARCHITECTURE
@@ -299,7 +328,7 @@ function applyCumulativeEffect(baseProbabilities, dailyRainfall) {
  * @returns {number[]} Array of 7 integers (0-100)
  */
 export function predictFlood(district, weather = {}) {
-  const districtData = DISTRICT_DATA[district] || DISTRICT_DATA['Central'];
+  const districtData = ACTIVE_DISTRICT_DATA[district] || ACTIVE_DISTRICT_DATA['Central'];
   const forecast = weather.forecast7day || [];
   const currentRain = weather.precipitation || 0;
 
@@ -326,7 +355,7 @@ export function predictFlood(district, weather = {}) {
  * @returns {object} Feature scores and their contribution
  */
 export function getFeatureBreakdown(district, rainfallMm = 0) {
-  const d = DISTRICT_DATA[district] || DISTRICT_DATA['Central'];
+  const d = ACTIVE_DISTRICT_DATA[district] || ACTIVE_DISTRICT_DATA['Central'];
   const baseRisk = rainfallToBaseRisk(rainfallMm);
   const tvi = computeTerrainVulnerability(d);
   const drainSat = drainageSaturation(rainfallMm, d);
@@ -375,7 +404,7 @@ export function getFeatureBreakdown(district, rainfallMm = 0) {
  * Generate safety precautions based on risk level (deterministic, no API needed).
  */
 export function getPrecautions(district, riskLevel) {
-  const d = DISTRICT_DATA[district] || DISTRICT_DATA['Central'];
+  const d = ACTIVE_DISTRICT_DATA[district] || ACTIVE_DISTRICT_DATA['Central'];
   const underpasses = d.underpasses || ['underpasses'];
 
   const precautionsByRisk = {
@@ -413,4 +442,4 @@ export function getPrecautions(district, riskLevel) {
 }
 
 // Export district data for UI display
-export { DISTRICT_DATA };
+export { ACTIVE_DISTRICT_DATA as DISTRICT_DATA };
