@@ -8,7 +8,6 @@ import FloodPredictor from './components/FloodPredictor';
 import CitizenReport from './components/CitizenReport';
 import AdminPanel from './components/AdminPanel';
 import HistoricalData from './components/HistoricalData';
-import EmergencyButton from './components/EmergencyButton';
 import AlertBanner from './components/AlertBanner';
 import CitizenRisk from './components/CitizenRisk';
 import { refreshMLParams } from './utils/floodML';
@@ -74,9 +73,6 @@ export default function App() {
           </div>
         </div>
         
-        <button className="nav-emergency-btn" onClick={() => document.getElementById('sos-btn')?.click()}>
-          🆘 SOS
-        </button>
         <button className="hamburger" onClick={() => setMenuOpen(!menuOpen)}>☰</button>
       </nav>
 
@@ -94,8 +90,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
-
-      <EmergencyButton />
     </Router>
   );
 }
