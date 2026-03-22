@@ -1,0 +1,185 @@
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, CircleMarker, Popup, LayersControl, ZoomControl } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import { hotspots, riskColors, districts, safeZones } from '../data/hotspots';
+import { drains } from '../data/drains';
+
+const typeLabels = {
+  embankment: '🏗️ Embankment',
+  flood_2023: '🌊 Flood 2023',
+  flood_1978: '📜 Flood 1978',
+  waterlogging: '💧 Waterlogging',
+  pumping_station: '⚙️ Pumping Station',
+  regulator: '🚰 Regulator',
+  village: '🏘️ Village',
+};
+
+const riskRadius = { critical: 14, high: 11, moderate: 9, low: 7 };
+
+export default function FloodMap({ filterRisk, filterType }) {
+  const [selectedHotspot, setSelectedHotspot] = useState(null);
+  const [activeFilters, setActiveFilters] = useState({ risk: 'all', type: 'all', district: 'all' });
+
+  const filtered = hotspots.filter(h => {
+    if (activeFilters.risk !== 'all' && h.risk !== activeFilters.risk) return false;
+    if (activeFilters.type !== 'all' && h.type !== activeFilters.type) return false;
+    if (activeFilters.district !== 'all' && h.district !== activeFilters.district) return false;
+    return true;
+  });
+
+  const filteredSafeZones = safeZones.filter(z => {
+    if (activeFilters.district !== 'all' && z.district !== activeFilters.district) return false;
+    return true;
+  });
+
+  const counts = { critical: 0, high: 0, moderate: 0, low: 0 };
+  filtered.forEach(h => { if (counts[h.risk] !== undefined) counts[h.risk]++; });
+
+  return (
+    <div>
+      {/* Filter Bar */}
+      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        <select className="form-select" style={{ width: 'auto', padding: '0.4rem 0.75rem' }}
+          onChange={e => setActiveFilters(f => ({ ...f, risk: e.target.value }))}>
+          <option value="all">All Risk Levels</option>
+          <option value="critical">🔴 Critical</option>
+          <option value="high">🟠 High</option>
+          <option value="moderate">🟡 Moderate</option>
+          <option value="low">🟢 Low</option>
+        </select>
+        <select className="form-select" style={{ width: 'auto', padding: '0.4rem 0.75rem' }}
+          onChange={e => setActiveFilters(f => ({ ...f, type: e.target.value }))}>
+          <option value="all">All Types</option>
+          {Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <select className="form-select" style={{ width: 'auto', padding: '0.4rem 0.75rem' }}
+          onChange={e => setActiveFilters(f => ({ ...f, district: e.target.value }))}>
+          <option value="all">All Districts</option>
+          {districts.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+        </select>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          {Object.entries(counts).map(([risk, count]) => count > 0 && (
+            <span key={risk} className={`risk-badge ${risk}`}>
+              {count} {risk}
+            </span>
+          ))}
+          <span style={{ background: 'rgba(5, 150, 105, 0.2)', color: '#6EE7B7', padding: '0.2rem 0.7rem', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 600, border: '1px solid rgba(5, 150, 105, 0.4)' }}>
+            {filteredSafeZones.length} SAFE ZONES
+          </span>
+        </div>
+      </div>
+
+      {/* Map */}
+      <div className="map-container">
+        <MapContainer
+          center={[28.6139, 77.2090]}
+          zoom={11}
+          style={{ height: '100%', width: '100%' }}
+          zoomControl={false}
+        >
+          <ZoomControl position="topright" />
+          <LayersControl position="topright">
+            <LayersControl.BaseLayer name="🌑 Dark">
+              <TileLayer
+                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                attribution='&copy; OpenStreetMap &copy; CARTO'
+              />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer checked name="🌤️ Light">
+              <TileLayer
+                url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+                attribution='&copy; OpenStreetMap &copy; CARTO'
+              />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer name="🛰️ Satellite">
+              <TileLayer
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                attribution='&copy; Esri, Maxar, Earthstar Geographics'
+              />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer name="⛰️ Terrain">
+              <TileLayer
+                url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+                attribution='&copy; OpenTopoMap contributors'
+              />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer name="🗺️ OpenStreetMap">
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; OpenStreetMap contributors'
+              />
+            </LayersControl.BaseLayer>
+          </LayersControl>
+          {filtered.map(h => (
+            <CircleMarker
+              key={h.id}
+              center={[h.lat, h.lng]}
+              radius={riskRadius[h.risk]}
+              pathOptions={{
+                fillColor: riskColors[h.risk],
+                color: riskColors[h.risk],
+                weight: 2,
+                opacity: 0.9,
+                fillOpacity: 0.7,
+              }}
+              eventHandlers={{ click: () => setSelectedHotspot(h) }}
+            >
+              <Popup>
+                <div className="popup-title">{h.name}</div>
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <span className={`risk-badge ${h.risk}`}>● {h.risk.toUpperCase()}</span>
+                  <span style={{ marginLeft: '0.5rem', fontSize: '0.78rem', color: '#94A3B8' }}>{typeLabels[h.type]}</span>
+                </div>
+                <div className="popup-desc">{h.description}</div>
+                <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: '#64748B' }}>📍 {h.district} District</div>
+              </Popup>
+            </CircleMarker>
+          ))}
+          
+          {filteredSafeZones.map(z => (
+            <CircleMarker
+              key={`safe-${z.id}`}
+              center={[z.lat, z.lng]}
+              radius={9}
+              pathOptions={{
+                fillColor: '#10B981', // Emerald green
+                color: '#34D399',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.9,
+              }}
+            >
+              <Popup>
+                <div className="popup-title" style={{ color: '#34D399' }}>✅ {z.name}</div>
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <span className="risk-badge" style={{ background: 'rgba(5, 150, 105, 0.2)', color: '#6EE7B7' }}>ELEVATED SAFE ZONE</span>
+                </div>
+                <div className="popup-desc">{z.description}</div>
+                <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: '#64748B' }}>📍 {z.district} District</div>
+              </Popup>
+            </CircleMarker>
+          ))}
+        </MapContainer>
+      </div>
+
+      {/* Legend */}
+      <div className="map-legend">
+        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', width: '100%' }}>LEGEND</div>
+        {Object.entries(riskColors).map(([risk, color]) => (
+          <div key={risk} className="legend-item">
+            <div className="legend-dot" style={{ background: color }}></div>
+            <span style={{ textTransform: 'capitalize' }}>{risk}</span>
+          </div>
+        ))}
+        <div className="legend-item" style={{ marginLeft: '0.5rem' }}>
+          <div className="legend-dot" style={{ background: '#10B981', border: '2px solid #34D399' }}></div>
+          <span style={{ textTransform: 'capitalize', color: '#34D399', fontWeight: 600 }}>Safe Zone</span>
+        </div>
+        <div style={{ width: 1, background: 'var(--border)', margin: '0 0.5rem' }}></div>
+        {Object.entries(typeLabels).slice(0, 4).map(([k, v]) => (
+          <div key={k} className="legend-item"><span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{v}</span></div>
+        ))}
+      </div>
+    </div>
+  );
+}
