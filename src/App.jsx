@@ -10,6 +10,7 @@ import AdminPanel from './components/AdminPanel';
 import HistoricalData from './components/HistoricalData';
 import AlertBanner from './components/AlertBanner';
 import CitizenRisk from './components/CitizenRisk';
+import VapiSOSButton from './components/VapiSOSButton';
 import { refreshMLParams } from './utils/floodML';
 
 export default function App() {
@@ -90,6 +91,8 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
+
+      <VapiSOSButton />
     </Router>
   );
 }
