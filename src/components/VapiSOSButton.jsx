@@ -1,221 +1,146 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 
 /**
- * SOS AI Voice Button with full-screen call overlay and live captions.
- * Uses dynamic import() for @vapi-ai/web to avoid crashing React on load.
- * Falls back to the HTML script tag Vapi widget if the SDK fails.
+ * SOS Button that triggers the Vapi voice widget (loaded via index.html)
+ * and shows a full-screen talking-animation overlay.
  */
 export default function VapiSOSButton() {
-  const [callState, setCallState] = useState('idle'); // idle | loading | active | error
-  const [transcript, setTranscript] = useState([]);
-  const [currentSpeech, setCurrentSpeech] = useState('');
-  const [duration, setDuration] = useState(0);
-  const vapiRef = useRef(null);
-  const timerRef = useRef(null);
+  const [showOverlay, setShowOverlay] = useState(false);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (vapiRef.current) {
-        try { vapiRef.current.stop(); } catch(e) {}
-      }
-    };
-  }, []);
+  const handleSOS = () => {
+    // Trigger the Vapi widget button (loaded externally via index.html)
+    const vapiBtn = document.querySelector('.vapi-btn')
+      || document.querySelector('[id*="vapi"]')
+      || document.querySelector('button[class*="vapi"]');
+    if (vapiBtn) vapiBtn.click();
 
-  const startCall = async () => {
-    setCallState('loading');
-    setTranscript([]);
-    setCurrentSpeech('');
-    setDuration(0);
-
-    try {
-      // Dynamic import — only loads when user clicks SOS
-      const VapiModule = await import('@vapi-ai/web');
-      const Vapi = VapiModule.default || VapiModule;
-      const vapi = new Vapi("3ddff6eb-26e5-4d54-9b55-3140518d44e0");
-      vapiRef.current = vapi;
-
-      // Listen for transcripts
-      vapi.on('message', (msg) => {
-        if (msg.type === 'transcript') {
-          if (msg.transcriptType === 'partial') {
-            setCurrentSpeech(msg.transcript || '');
-          } else if (msg.transcriptType === 'final') {
-            setTranscript(prev => [...prev, {
-              role: msg.role === 'assistant' ? '🤖 AI' : '🗣️ You',
-              text: msg.transcript
-            }]);
-            setCurrentSpeech('');
-          }
-        }
-      });
-
-      vapi.on('call-start', () => {
-        setCallState('active');
-        timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
-      });
-
-      vapi.on('call-end', () => {
-        setCallState('idle');
-        if (timerRef.current) clearInterval(timerRef.current);
-      });
-
-      vapi.on('error', (err) => {
-        console.error('Vapi error:', err);
-        setCallState('error');
-        if (timerRef.current) clearInterval(timerRef.current);
-      });
-
-      await vapi.start("c373f766-9804-4db8-861d-c37cd811ea33");
-    } catch (err) {
-      console.error('Failed to start Vapi call:', err);
-      setCallState('error');
-    }
+    setShowOverlay(true);
   };
 
-  const endCall = () => {
-    if (vapiRef.current) {
-      try { vapiRef.current.stop(); } catch(e) {}
-    }
-    setCallState('idle');
-    if (timerRef.current) clearInterval(timerRef.current);
+  const handleEnd = () => {
+    // Try to end the Vapi call
+    const vapiBtn = document.querySelector('.vapi-btn')
+      || document.querySelector('[id*="vapi"]')
+      || document.querySelector('button[class*="vapi"]');
+    if (vapiBtn) vapiBtn.click();
+
+    setShowOverlay(false);
   };
 
-  const formatTime = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-
-  // ─── FULL-SCREEN CALL OVERLAY ───
-  if (callState === 'active' || callState === 'loading') {
+  if (showOverlay) {
     return (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 99999,
-        background: 'linear-gradient(180deg, #1a0000 0%, #3b0000 40%, #7f1d1d 100%)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        background: 'linear-gradient(180deg, #1a0000 0%, #450a0a 50%, #7f1d1d 100%)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         fontFamily: "'Inter', sans-serif", color: 'white',
-        overflow: 'hidden',
       }}>
-        {/* Top Bar */}
-        <div style={{ padding: '1.5rem 2rem', width: '100%', textAlign: 'center' }}>
-          <p style={{ fontSize: '0.85rem', color: '#fca5a5', letterSpacing: '0.15em', margin: 0 }}>
-            {callState === 'loading' ? '📡 CONNECTING...' : '🔴 LIVE — EMERGENCY SOS'}
-          </p>
-          <h1 style={{ fontSize: '1.6rem', margin: '0.3rem 0 0', fontWeight: 800 }}>
-            🚨 JAL PRAVAH SOS
-          </h1>
-          {callState === 'active' && (
-            <p style={{ fontSize: '2rem', fontWeight: 700, color: '#f87171', margin: '0.5rem 0 0' }}>
-              {formatTime(duration)}
-            </p>
-          )}
-        </div>
+        {/* Title */}
+        <p style={{ fontSize: '0.8rem', color: '#fca5a5', letterSpacing: '0.2em', margin: 0 }}>
+          🔴 LIVE — EMERGENCY SOS
+        </p>
+        <h1 style={{ fontSize: '1.8rem', margin: '0.5rem 0 2rem', fontWeight: 800, textAlign: 'center' }}>
+          🚨 JAL PRAVAH SOS
+        </h1>
 
-        {/* Pulsing wave animation */}
-        <div style={{ position: 'relative', width: '160px', height: '160px', margin: '1rem 0' }}>
+        {/* Pulsing circles animation */}
+        <div style={{ position: 'relative', width: '200px', height: '200px' }}>
+          {/* Outer pulse ring 1 */}
           <div style={{
-            position: 'absolute', inset: 0, borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(220,38,38,0.6) 0%, transparent 70%)',
-            animation: callState === 'active' ? 'sosPulse 1.5s ease-in-out infinite' : 'none',
+            position: 'absolute', inset: '-20px', borderRadius: '50%',
+            border: '2px solid rgba(248,113,113,0.3)',
+            animation: 'sosPulse1 2s ease-out infinite',
           }} />
+          {/* Outer pulse ring 2 */}
           <div style={{
-            position: 'absolute', inset: '30px', borderRadius: '50%',
+            position: 'absolute', inset: '-5px', borderRadius: '50%',
+            border: '2px solid rgba(248,113,113,0.5)',
+            animation: 'sosPulse2 2s ease-out infinite 0.4s',
+          }} />
+          {/* Inner glow */}
+          <div style={{
+            position: 'absolute', inset: '10px', borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(220,38,38,0.4) 0%, transparent 70%)',
+            animation: 'sosGlow 1.5s ease-in-out infinite',
+          }} />
+          {/* Center mic icon */}
+          <div style={{
+            position: 'absolute', inset: '40px', borderRadius: '50%',
             background: 'linear-gradient(135deg, #DC2626, #991B1B)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '3.5rem', boxShadow: '0 0 60px rgba(220,38,38,0.5)',
+            fontSize: '3.5rem',
+            boxShadow: '0 0 60px rgba(220,38,38,0.6)',
           }}>
-            {callState === 'loading' ? '📡' : '🎙️'}
+            🎙️
+          </div>
+          {/* Sound wave bars */}
+          <div style={{
+            position: 'absolute', bottom: '-50px', left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', gap: '4px', alignItems: 'flex-end', height: '30px',
+          }}>
+            {[1,2,3,4,5,6,7].map(i => (
+              <div key={i} style={{
+                width: '4px', borderRadius: '2px',
+                background: 'linear-gradient(to top, #f87171, #fca5a5)',
+                animation: `soundBar 0.8s ease-in-out infinite ${i * 0.1}s`,
+              }} />
+            ))}
           </div>
         </div>
 
-        {/* Live Captions Area */}
-        <div style={{
-          flex: 1, width: '100%', maxWidth: '600px', overflowY: 'auto',
-          padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.6rem',
+        {/* Status text */}
+        <p style={{
+          marginTop: '5rem', fontSize: '1.1rem', color: '#fca5a5',
+          animation: 'fadeInOut 2s ease-in-out infinite',
         }}>
-          <p style={{ textAlign: 'center', color: '#fca5a5', fontSize: '0.75rem', letterSpacing: '0.1em', margin: '0 0 0.5rem' }}>
-            — LIVE CAPTIONS —
-          </p>
-          {transcript.map((t, i) => (
-            <div key={i} style={{
-              background: t.role === '🤖 AI' ? 'rgba(220,38,38,0.2)' : 'rgba(255,255,255,0.08)',
-              borderRadius: '12px', padding: '0.7rem 1rem',
-              borderLeft: t.role === '🤖 AI' ? '3px solid #f87171' : '3px solid #60a5fa',
-            }}>
-              <span style={{ fontSize: '0.7rem', color: '#fca5a5', fontWeight: 600 }}>{t.role}</span>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.95rem', lineHeight: 1.4 }}>{t.text}</p>
-            </div>
-          ))}
-          {currentSpeech && (
-            <div style={{
-              background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '0.7rem 1rem',
-              borderLeft: '3px solid #fbbf24', fontStyle: 'italic', opacity: 0.8,
-            }}>
-              <span style={{ fontSize: '0.7rem', color: '#fbbf24' }}>✍️ Listening...</span>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.9rem' }}>{currentSpeech}</p>
-            </div>
-          )}
-          {transcript.length === 0 && !currentSpeech && callState === 'active' && (
-            <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem', marginTop: '2rem' }}>
-              Speak now — your words will appear here...
-            </p>
-          )}
-        </div>
+          Speak now... AI is listening
+        </p>
 
-        {/* End Call Button */}
-        <div style={{ padding: '1.5rem', width: '100%', display: 'flex', justifyContent: 'center' }}>
-          <button onClick={endCall} style={{
-            background: '#fff', color: '#DC2626', border: 'none',
-            padding: '1rem 3rem', borderRadius: '50px', fontSize: '1.1rem',
-            fontWeight: 700, cursor: 'pointer',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-          }}>
-            ✕ END SOS CALL
-          </button>
-        </div>
+        <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.5rem' }}>
+          Delhi Disaster Helpline: 1077
+        </p>
 
-        {/* Keyframe injection */}
+        {/* End Call */}
+        <button onClick={handleEnd} style={{
+          marginTop: '2.5rem',
+          background: 'white', color: '#DC2626', border: 'none',
+          padding: '1rem 3rem', borderRadius: '50px', fontSize: '1.1rem',
+          fontWeight: 700, cursor: 'pointer',
+          boxShadow: '0 4px 25px rgba(0,0,0,0.4)',
+        }}>
+          ✕ END CALL
+        </button>
+
         <style>{`
-          @keyframes sosPulse {
-            0%, 100% { transform: scale(1); opacity: 0.6; }
-            50% { transform: scale(1.4); opacity: 0.2; }
+          @keyframes sosPulse1 {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(1.6); opacity: 0; }
+          }
+          @keyframes sosPulse2 {
+            0% { transform: scale(1); opacity: 0.5; }
+            100% { transform: scale(1.5); opacity: 0; }
+          }
+          @keyframes sosGlow {
+            0%, 100% { opacity: 0.4; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.15); }
+          }
+          @keyframes soundBar {
+            0%, 100% { height: 6px; }
+            50% { height: ${Math.random() * 20 + 10}px; }
+          }
+          @keyframes fadeInOut {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
           }
         `}</style>
       </div>
     );
   }
 
-  // ─── ERROR STATE ───
-  if (callState === 'error') {
-    return (
-      <>
-        <div style={{
-          position: 'fixed', bottom: '2rem', left: '2rem', zIndex: 9999,
-          background: '#991B1B', color: 'white', padding: '1rem 1.5rem',
-          borderRadius: '16px', fontSize: '0.9rem', maxWidth: '320px',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-        }}>
-          <p style={{ margin: 0, fontWeight: 600 }}>⚠️ Voice agent unavailable</p>
-          <p style={{ margin: '0.3rem 0 0.6rem', fontSize: '0.8rem', opacity: 0.8 }}>
-            Call the Delhi Disaster Helpline directly:
-          </p>
-          <a href="tel:1077" style={{
-            display: 'block', background: 'white', color: '#DC2626',
-            textAlign: 'center', padding: '0.6rem', borderRadius: '8px',
-            fontWeight: 700, textDecoration: 'none', marginBottom: '0.4rem',
-          }}>📞 Call 1077</a>
-          <button onClick={() => setCallState('idle')} style={{
-            background: 'transparent', border: '1px solid rgba(255,255,255,0.3)',
-            color: 'white', width: '100%', padding: '0.5rem', borderRadius: '8px',
-            cursor: 'pointer', fontSize: '0.8rem',
-          }}>Dismiss</button>
-        </div>
-      </>
-    );
-  }
-
   // ─── IDLE SOS BUTTON ───
   return (
     <button
-      onClick={startCall}
+      onClick={handleSOS}
       id="sos-btn"
       style={{
         position: 'fixed', bottom: '2rem', left: '2rem', zIndex: 9999,
@@ -227,7 +152,6 @@ export default function VapiSOSButton() {
         boxShadow: '0 0 25px rgba(220,38,38,0.5), 0 4px 15px rgba(0,0,0,0.3)',
         cursor: 'pointer', transition: 'all 0.3s ease',
         letterSpacing: '0.05em', fontFamily: "'Inter', sans-serif",
-        animation: 'pulse-red 2s infinite',
       }}
     >
       <span style={{ fontSize: '1.4rem' }}>🚨</span>

@@ -52,25 +52,9 @@ export default function App() {
             className="nav-link" style={{ background: 'var(--bg-glass)', border: `1px solid var(--border)`, cursor: 'pointer', borderRadius: '50px' }}>
             {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', marginLeft: '0.5rem' }}>
-            <span style={{ marginRight: '0.4rem', fontSize: '1.2rem' }}>🌐</span>
-            <select 
-              className="nav-link"
-              style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.3rem 0.6rem', color: 'inherit', cursor: 'pointer', outline: 'none', appearance: 'none' }}
-              onChange={(e) => {
-                const googSelect = document.querySelector('.goog-te-combo');
-                if (googSelect) {
-                  googSelect.value = e.target.value;
-                  googSelect.dispatchEvent(new Event('change'));
-                }
-              }}
-            >
-              <option value="en">English (EN)</option>
-              <option value="hi">हिंदी (HI)</option>
-              <option value="pa">ਪੰਜਾਬੀ (PA)</option>
-              <option value="ur">اردو (UR)</option>
-            </select>
-            <div id="google_translate_element" style={{ position: 'absolute', opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' }}></div>
+          <div style={{ display: 'flex', alignItems: 'center', marginLeft: '0.5rem', background: 'var(--bg-glass)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.15rem 0.5rem' }}>
+            <span style={{ fontSize: '1rem', marginRight: '0.3rem' }}>🌐</span>
+            <div id="google_translate_element"></div>
           </div>
         </div>
         
