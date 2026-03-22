@@ -70,7 +70,7 @@ export default function App() {
               <option value="pa">ਪੰਜਾਬੀ (PA)</option>
               <option value="ur">اردو (UR)</option>
             </select>
-            <div id="google_translate_element" style={{ display: 'none' }}></div>
+            <div id="google_translate_element" style={{ position: 'absolute', opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' }}></div>
           </div>
         </div>
         
