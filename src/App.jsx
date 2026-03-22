@@ -8,8 +8,10 @@ import FloodPredictor from './components/FloodPredictor';
 import CitizenReport from './components/CitizenReport';
 import AdminPanel from './components/AdminPanel';
 import HistoricalData from './components/HistoricalData';
+import HistoricalData from './components/HistoricalData';
 import EmergencyButton from './components/EmergencyButton';
 import AlertBanner from './components/AlertBanner';
+import CitizenRisk from './components/CitizenRisk';
 
 export default function App() {
   const [showApp, setShowApp] = useState(false);
@@ -61,6 +63,7 @@ export default function App() {
           <Route path="/" element={<HomePage alertLevel={alertLevel} setAlertLevel={setAlertLevel} />} />
           <Route path="/pmrs" element={<PMRSDashboard />} />
           <Route path="/predictor" element={<FloodPredictor />} />
+          <Route path="/risk" element={<CitizenRisk />} />
           <Route path="/report" element={<CitizenReport />} />
           <Route path="/history" element={<HistoricalData />} />
           <Route path="/admin" element={<AdminPanel />} />
