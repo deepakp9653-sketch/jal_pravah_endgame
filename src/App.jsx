@@ -8,7 +8,6 @@ import FloodPredictor from './components/FloodPredictor';
 import CitizenReport from './components/CitizenReport';
 import AdminPanel from './components/AdminPanel';
 import HistoricalData from './components/HistoricalData';
-import HistoricalData from './components/HistoricalData';
 import EmergencyButton from './components/EmergencyButton';
 import AlertBanner from './components/AlertBanner';
 import CitizenRisk from './components/CitizenRisk';
