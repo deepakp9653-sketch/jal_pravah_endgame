@@ -3,6 +3,17 @@ import { MapContainer, TileLayer, CircleMarker, Popup, LayersControl, ZoomContro
 import 'leaflet/dist/leaflet.css';
 import { hotspots, riskColors, districts, safeZones } from '../data/hotspots';
 import { drains } from '../data/drains';
+import { useMap } from 'react-leaflet';
+
+function MapController({ center, zoom }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center) {
+      map.flyTo(center, zoom, { animate: true });
+    }
+  }, [center, zoom, map]);
+  return null;
+}
 
 const typeLabels = {
   embankment: '🏗️ Embankment',
@@ -19,6 +30,25 @@ const riskRadius = { critical: 14, high: 11, moderate: 9, low: 7 };
 export default function FloodMap({ filterRisk, filterType }) {
   const [selectedHotspot, setSelectedHotspot] = useState(null);
   const [activeFilters, setActiveFilters] = useState({ risk: 'all', type: 'all', district: 'all' });
+  const [mapCenter, setMapCenter] = useState([20.5937, 78.9629]); // Default to center of India
+  const [mapZoom, setMapZoom] = useState(5);
+  
+  const locateUser = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setMapCenter([position.coords.latitude, position.coords.longitude]);
+          setMapZoom(12);
+        },
+        (err) => {
+          console.error("Geolocation error:", err);
+          alert("Location access denied or unavailable.");
+        }
+      );
+    } else {
+      alert("Geolocation is not supported by your browser.");
+    }
+  };
 
   const filtered = hotspots.filter(h => {
     if (activeFilters.risk !== 'all' && h.risk !== activeFilters.risk) return false;
@@ -58,6 +88,13 @@ export default function FloodMap({ filterRisk, filterType }) {
           {districts.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
         </select>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button 
+            onClick={locateUser} 
+            className="btn btn-primary" 
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}
+          >
+            📍 Focus My Location
+          </button>
           {Object.entries(counts).map(([risk, count]) => count > 0 && (
             <span key={risk} className={`risk-badge ${risk}`}>
               {count} {risk}
@@ -72,11 +109,12 @@ export default function FloodMap({ filterRisk, filterType }) {
       {/* Map */}
       <div className="map-container">
         <MapContainer
-          center={[28.6139, 77.2090]}
-          zoom={11}
+          center={mapCenter}
+          zoom={mapZoom}
           style={{ height: '100%', width: '100%' }}
           zoomControl={false}
         >
+          <MapController center={mapCenter} zoom={mapZoom} />
           <ZoomControl position="topright" />
           <LayersControl position="topright">
             <LayersControl.BaseLayer name="🌑 Dark">
