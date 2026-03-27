@@ -1,9 +1,91 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, LayersControl, ZoomControl } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, LayersControl, ZoomControl, Polyline, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { hotspots, riskColors, districts, safeZones } from '../data/hotspots';
-import { drains } from '../data/drains';
-import { useMap } from 'react-leaflet';
+import { hotspots as baseHotspots, riskColors, districts, safeZones } from '../data/hotspots';
+import { massiveHotspots } from '../data/massiveHotspots';
+import { useLocationContext } from '../context/LocationContext';
+import { calculateUniversalPMRS } from '../utils/universalPMRS';
+import { bhuvanGetLULCStats, bhuvanGetRoutingData, bhuvanGetGeoID, bhuvanExtractTerrainData } from '../utils/bhuvan-api';
+
+const hotspots = [...baseHotspots, ...massiveHotspots];
+
+function LiveWeatherBoundsController({ weatherCache, setWeatherCache }) {
+  const map = useMapEvents({
+    moveend: () => checkBounds(),
+    zoomend: () => checkBounds(),
+  });
+
+  const checkBounds = async () => {
+    if (map.getZoom() < 9) return; // Only fetch when zoomed in (e.g. city/state level)
+
+    const bounds = map.getBounds();
+    const visibleHotspots = hotspots.filter(h => bounds.contains([h.lat, h.lng]));
+
+    if (visibleHotspots.length === 0 || visibleHotspots.length > 30) return; // Prevent massive API spam
+
+    // Only fetch for dots we haven't cached yet
+    const toFetch = visibleHotspots.filter(h => !weatherCache[h.id]);
+    if (toFetch.length === 0) return;
+
+    try {
+      const lats = toFetch.map(h => h.lat).join(',');
+      const lons = toFetch.map(h => h.lng).join(',');
+      
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=precipitation&daily=precipitation_sum&timezone=Asia%2FKolkata&forecast_days=7&past_days=7`);
+      const data = await res.json();
+      
+      const newCache = { ...weatherCache };
+      const responses = toFetch.length === 1 ? [data] : data;
+
+      // Fetch live Bhuvan topological/infrastructure APIs for all visible spots concurrently
+      const bhuvanPayloads = await Promise.all(toFetch.map(async h => {
+        const [lulc, routing, geo, terrain] = await Promise.all([
+          bhuvanGetLULCStats(h.lat, h.lng),
+          bhuvanGetRoutingData(h.lat, h.lng),
+          bhuvanGetGeoID(h.lat, h.lng),
+          bhuvanExtractTerrainData(h.lat, h.lng)
+        ]);
+        return { lulc, routing, geo, terrain };
+      }));
+      
+      responses.forEach((wData, index) => {
+        const h = toFetch[index];
+        const b = bhuvanPayloads[index];
+        const allDays = wData.daily?.precipitation_sum || [];
+        const past3Rain = allDays.slice(0, 7).slice(-3).reduce((acc, val) => acc + val, 0);
+        const currentRainMm = wData.current?.precipitation || 0;
+
+        const pmrsData = calculateUniversalPMRS({
+          lulcConcretePct: b.lulc.concretePct,
+          slopePct: parseFloat(b.terrain.slope),
+          routeToRiverKm: b.routing.routeToRiverKm,
+          populationDensity: b.geo.populationDensity,
+          pumpingStations: b.geo.type === 'highly_dense_urban' ? 3 : 1,
+          drainCapacityM3s: 50,
+          past3DayRainMm: past3Rain,
+          currentRainMm: currentRainMm,
+          forecast7day: allDays.slice(7, 14),
+          wardName: h.district || ''
+        });
+
+        // Determine live risk color
+        let liveRisk = 'low';
+        if (pmrsData.floodRiskPct > 60) liveRisk = 'critical';
+        else if (pmrsData.floodRiskPct > 35) liveRisk = 'high';
+        else if (pmrsData.floodRiskPct > 15) liveRisk = 'moderate';
+
+        newCache[h.id] = { risk: liveRisk, pmrs: pmrsData.pmrs, prob: pmrsData.floodRiskPct, rain: currentRainMm };
+      });
+
+      setWeatherCache(newCache);
+    } catch (e) {
+      console.warn('Smart Batch Weather Error:', e);
+    }
+  };
+
+  useEffect(() => { checkBounds(); }, []);
+  return null;
+}
 
 function MapController({ center, zoom }) {
   const map = useMap();
@@ -30,8 +112,18 @@ const riskRadius = { critical: 14, high: 11, moderate: 9, low: 7 };
 export default function FloodMap({ filterRisk, filterType }) {
   const [selectedHotspot, setSelectedHotspot] = useState(null);
   const [activeFilters, setActiveFilters] = useState({ risk: 'all', type: 'all', district: 'all' });
-  const [mapCenter, setMapCenter] = useState([20.5937, 78.9629]); // Default to center of India
-  const [mapZoom, setMapZoom] = useState(5);
+  const [mapCenter, setMapCenter] = useState([28.6139, 77.2090]); // Default to Delhi as requested
+  const [mapZoom, setMapZoom] = useState(11);
+  const [weatherCache, setWeatherCache] = useState({}); // Smart Batch cache
+  
+  const { globalCityData, globalOsmDrainage, isGlobalSearching } = useLocationContext();
+
+  useEffect(() => {
+    if (globalCityData && globalCityData.lat) {
+      setMapCenter([globalCityData.lat, globalCityData.lon]);
+      setMapZoom(13); // Zoom to city level automatically
+    }
+  }, [globalCityData]);
   
   const locateUser = () => {
     if (navigator.geolocation) {
@@ -68,7 +160,21 @@ export default function FloodMap({ filterRisk, filterType }) {
   return (
     <div>
       {/* Filter Bar */}
-      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
+        
+        {globalCityData && (
+          <div style={{ background: 'var(--bg-glass)', padding: '0.3rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+             <span style={{ fontSize: '1rem' }}>📍</span> 
+             <span>Tracking <strong style={{ color: 'var(--primary-light)' }}>{globalCityData.name}</strong></span>
+          </div>
+        )}
+
+        {isGlobalSearching && (
+           <div style={{ color: 'var(--primary-light)', fontSize: '0.85rem' }}>
+             <span style={{ animation: 'pulse-water 1s infinite' }}>⏳</span> Syncing Map to City...
+           </div>
+        )}
+
         <select className="form-select" style={{ width: 'auto', padding: '0.4rem 0.75rem' }}
           onChange={e => setActiveFilters(f => ({ ...f, risk: e.target.value }))}>
           <option value="all">All Risk Levels</option>
@@ -82,11 +188,7 @@ export default function FloodMap({ filterRisk, filterType }) {
           <option value="all">All Types</option>
           {Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <select className="form-select" style={{ width: 'auto', padding: '0.4rem 0.75rem' }}
-          onChange={e => setActiveFilters(f => ({ ...f, district: e.target.value }))}>
-          <option value="all">All Districts</option>
-          {districts.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
-        </select>
+        
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <button 
             onClick={locateUser} 
@@ -115,18 +217,20 @@ export default function FloodMap({ filterRisk, filterType }) {
           zoomControl={false}
         >
           <MapController center={mapCenter} zoom={mapZoom} />
+          <LiveWeatherBoundsController weatherCache={weatherCache} setWeatherCache={setWeatherCache} />
           <ZoomControl position="topright" />
           <LayersControl position="topright">
-            <LayersControl.BaseLayer name="🌑 Dark">
+            <LayersControl.BaseLayer checked name="🗺️ Esri Street Map">
               <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                attribution='&copy; OpenStreetMap &copy; CARTO'
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+                attribution='&copy; Esri, HERE, Garmin'
               />
             </LayersControl.BaseLayer>
-            <LayersControl.BaseLayer checked name="🌤️ Light">
+            <LayersControl.BaseLayer name="🇮🇳 MapmyIndia (Mappls)">
               <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                attribution='&copy; OpenStreetMap &copy; CARTO'
+                url="https://apis.mappls.com/advancedmaps/v1/dnkqcqsyjniuauawfukamrqcgowkqiadisov/still/map_sdk?layer=vector&size=256&x={x}&y={y}&z={z}"
+                attribution='© Mappls, CE Info Systems'
+                maxZoom={19}
               />
             </LayersControl.BaseLayer>
             <LayersControl.BaseLayer name="🛰️ Bhuvan Satellite (ISRO)">
@@ -149,37 +253,60 @@ export default function FloodMap({ filterRisk, filterType }) {
                 attribution='&copy; OpenTopoMap contributors'
               />
             </LayersControl.BaseLayer>
-            <LayersControl.BaseLayer name="🗺️ OpenStreetMap">
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; OpenStreetMap contributors'
-              />
-            </LayersControl.BaseLayer>
+
           </LayersControl>
-          {filtered.map(h => (
+          {filtered.map(h => {
+             const isSelected = selectedHotspot?.id === h.id;
+             const liveData = weatherCache[h.id];
+             const currentRiskColor = riskColors[liveData ? liveData.risk : h.risk];
+             return (
             <CircleMarker
               key={h.id}
               center={[h.lat, h.lng]}
-              radius={riskRadius[h.risk]}
+              radius={isSelected ? 6 : 2.5}
               pathOptions={{
-                fillColor: riskColors[h.risk],
-                color: riskColors[h.risk],
-                weight: 2,
-                opacity: 0.9,
-                fillOpacity: 0.7,
+                fillColor: currentRiskColor,
+                color: currentRiskColor,
+                weight: isSelected ? 2 : 0,
+                opacity: 0.8,
+                fillOpacity: 0.45,
               }}
               eventHandlers={{ click: () => setSelectedHotspot(h) }}
             >
               <Popup>
                 <div className="popup-title">{h.name}</div>
                 <div style={{ marginBottom: '0.5rem' }}>
-                  <span className={`risk-badge ${h.risk}`}>● {h.risk.toUpperCase()}</span>
+                  <span className="risk-badge" style={{ background: currentRiskColor }}>
+                    ● {(liveData ? liveData.risk : h.risk).toUpperCase()} {liveData && '(LIVE)'}
+                  </span>
                   <span style={{ marginLeft: '0.5rem', fontSize: '0.78rem', color: '#94A3B8' }}>{typeLabels[h.type]}</span>
                 </div>
+                {liveData && (
+                  <div style={{ background: 'var(--bg-card)', padding: '0.4rem', borderRadius: '4px', marginBottom: '0.4rem', fontSize: '0.75rem' }}>
+                    <strong>PMRS:</strong> {liveData.pmrs}/100<br/>
+                    <strong>Flood Prob:</strong> {liveData.prob}%<br/>
+                    <strong>Rain:</strong> {liveData.rain}mm
+                  </div>
+                )}
                 <div className="popup-desc">{h.description}</div>
                 <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: '#64748B' }}>📍 {h.district} District</div>
               </Popup>
             </CircleMarker>
+            );
+          })}
+          
+          {/* Dynamically Extracted OSM Drainage */}
+          {(globalOsmDrainage || []).map(way => (
+            <Polyline
+              key={way.id}
+              positions={way.coordinates}
+              pathOptions={{ color: '#60A5FA', weight: 4, opacity: 0.8 }}
+            >
+              <Popup>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>OSM Drainage Infrastructure</div>
+                <div style={{ fontSize: '0.75rem', color: '#64748B' }}>Type: {way.tags?.waterway || 'drain'}</div>
+              </Popup>
+            </Polyline>
           ))}
           
           {filteredSafeZones.map(z => (

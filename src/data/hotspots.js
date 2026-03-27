@@ -404,7 +404,6 @@ export const districts = [
   { name: "South West", center: [28.5700, 77.0500] },
   { name: "New Delhi", center: [28.6100, 77.2100] },
   { name: "Shahdara", center: [28.6700, 77.2900] },
-,
   { name: "Golaghat", center: [26.5775, 93.1711] },
   { name: "Majuli", center: [26.968, 94.1353] },
   { name: "Cachar", center: [24.8333, 92.7789] },
@@ -641,3 +640,4 @@ export const safeZones = [
   { id: 205, name: "Pragati Maidan Halls", lat: 28.6180, lng: 77.2400, district: "New Delhi", description: "High plinth capacity for emergency shelter" },
   { id: 206, name: "India Gate Lawns (Upper)", lat: 28.6120, lng: 77.2290, district: "New Delhi", description: "Central elevated zones safe from inundation" },
 ];
+

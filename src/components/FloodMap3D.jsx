@@ -42,6 +42,7 @@ export default function FloodMap3D() {
   const [simulationActive, setSimulationActive] = useState(false);
   const [rainfallMM, setRainfallMM] = useState(0); // Rainfall input
   const waterEntityRef = useRef(null);
+  const tilesetRef = useRef(null);
   
   const entitiesRef = useRef([]);
 
@@ -66,8 +67,8 @@ export default function FloodMap3D() {
     const viewer = new Cesium.Viewer(cesiumContainerRef.current, {
       terrain: Cesium.Terrain.fromWorldTerrain(),
       baseLayer: new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
-        url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        credit: 'CartoDB Light, OSM Contributors'
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        credit: 'Esri World Imagery'
       })),
       baseLayerPicker: false,
       geocoder: false,
@@ -152,15 +153,21 @@ export default function FloodMap3D() {
     try {
       const tileset = await Cesium.createGooglePhotorealistic3DTileset();
       viewer.scene.primitives.add(tileset);
+      tilesetRef.current = tileset;
       
-      // Hide the default globe to prevent z-fighting with Google Tiles
-      viewer.scene.globe.show = false;
+      // Keep the default globe visible so Satellite shows through where 3D Tiles lack data
+      viewer.scene.globe.show = true;
     } catch (e) {
       console.warn('Could not load Google 3D Tiles. Ensure the asset is enabled in your Cesium Ion account.', e);
     }
   }
 
-  // Buildings visibility removed since Google Tiles encompass terrain + buildings
+  // Toggle 3D Buildings overlay
+  useEffect(() => {
+    if (tilesetRef.current) {
+      tilesetRef.current.show = buildingsEnabled;
+    }
+  }, [buildingsEnabled]);
 
   // Toggle terrain
   useEffect(() => {

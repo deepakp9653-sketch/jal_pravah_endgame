@@ -2,34 +2,51 @@ import React, { useState, useEffect } from 'react';
 import { drains } from '../data/drains';
 import { districts } from '../data/hotspots';
 import { supabase } from '../utils/supabase';
+import { ACTIVE_DISTRICT_DATA, predictFlood } from '../utils/floodML';
+import { generateGeminiResponse } from '../utils/gemini';
+import { calculateUniversalPMRS } from '../utils/universalPMRS';
+import { bhuvanExtractTerrainData } from '../utils/bhuvan-api';
 
-const mockReports = [
-  { id: 1, category: 'Waterlogging', location: 'Minto Bridge, Central Delhi', severity: 'High', status: 'Pending', timestamp: '21/03/2026, 14:30', district: 'Central' },
-  { id: 2, category: 'Drainage Blockage', location: 'GTK Road, Jahangirpuri', severity: 'Medium', status: 'In Progress', timestamp: '21/03/2026, 12:15', district: 'North West' },
-  { id: 3, category: 'Overflowing Drain', location: 'Barapullah Flyover', severity: 'High', status: 'Resolved', timestamp: '20/03/2026, 18:45', district: 'South East' },
-  { id: 4, category: 'Infrastructure Damage', location: 'Ring Road, Moolchand', severity: 'Low', status: 'Pending', timestamp: '20/03/2026, 10:00', district: 'South' },
-];
+// 🔗 n8n Webhook URL
+const N8N_WEBHOOK_URL = 'https://deepak68227.app.n8n.cloud/webhook/flood-alert';
 
-const mockAlerts = [
-  { id: 1, district: 'North East', type: 'Flood Warning', severity: 'Critical', message: 'Sonia Vihar LF Bund under pressure. Immediate inspection required.', timestamp: '21/03/2026, 15:00' },
-  { id: 2, district: 'Central', type: 'Water Level', severity: 'High', message: 'Yamuna at 204.8m. Approaching warning level of 204.50m.', timestamp: '21/03/2026, 14:00' },
-  { id: 3, district: 'Shahdara', type: 'Drain Overflow', severity: 'High', message: 'Shahdara Outfall Drain at capacity. Pumping stations alert.', timestamp: '21/03/2026, 13:00' },
-];
+async function triggerN8nAlert(payload) {
+  try {
+    const res = await fetch(N8N_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return res.ok;
+  } catch (e) {
+    console.warn('n8n webhook failed:', e.message);
+    return false;
+  }
+}
 
-const mockCalls = [
-  { id: 1, caller: '98XXXXXXXX', location: 'Usmanpur Village, NE Delhi', urgency: 'Critical', type: 'Evacuation', status: 'Dispatched', time: '15:20' },
-  { id: 2, caller: '97XXXXXXXX', location: 'Joga Bai, Okhla', urgency: 'High', type: 'Supplies', status: 'Pending', time: '14:55' },
-  { id: 3, caller: '96XXXXXXXX', location: 'Yamuna Bazar, Central', urgency: 'Medium', type: 'Information', status: 'Resolved', time: '14:30' },
-];
+const WARD_COORDS = {
+  // Delhi
+  'Central': [28.6353, 77.2250], 'North': [28.7280, 77.1580],
+  'North East': [28.7050, 77.2650], 'North West': [28.7350, 77.0600],
+  'East': [28.6280, 77.3100], 'West': [28.6520, 77.0650],
+  'South': [28.5245, 77.2066], 'South East': [28.5680, 77.2850],
+  'South West': [28.5750, 77.0800], 'New Delhi': [28.6139, 77.2090],
+  'Shahdara': [28.6750, 77.2900],
+  // Non-Delhi
+  'Mumbai': [19.0760, 72.8777], 'Bangalore': [12.9716, 77.5946],
+  'Chennai': [13.0827, 80.2707], 'Kolkata': [22.5726, 88.3639],
+  'Pune': [18.5204, 73.8567], 'Hyderabad': [17.3850, 78.4867]
+};
 
 const sidebarItems = [
-  { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-  { id: 'ml_params', icon: '⚙️', label: 'Drainage & ML Params' },
-  { id: 'officers', icon: '👮', label: 'Ward Officers' },
+  { id: 'dashboard', icon: '🏢', label: 'Ward Dashboard' },
+  { id: 'advisor', icon: '🧠', label: 'AI Strategy Advisor' },
+  { id: 'officers', icon: '🤝', label: 'Dept. Coordination' },
   { id: 'reports', icon: '📝', label: 'Citizen Reports' },
-  { id: 'alerts', icon: '🚨', label: 'Alert History' },
-  { id: 'calls', icon: '📞', label: 'Emergency Calls' },
+  { id: 'calls', icon: '📞', label: "Citizen SOS Alerts" },
 ];
+
+const DAYS = ['Today','Day 2','Day 3','Day 4','Day 5','Day 6','Day 7'];
 
 export default function AdminPanel() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -39,27 +56,35 @@ export default function AdminPanel() {
   const [loadingLogin, setLoadingLogin] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   
-  // Dynamic Supabase Auth State
   const [wardParams, setWardParams] = useState(null);
   const [officers, setOfficers] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [calls, setCalls] = useState([]);
+  const [wardIntel, setWardIntel] = useState(null);
+  
+  const [advisorIntel, setAdvisorIntel] = useState("");
+  const [loadingAdvisor, setLoadingAdvisor] = useState(false);
 
-  const loadOfficers = async (selectedWard) => {
-    const { data } = await supabase.from('officers').select('*').eq('ward_id', selectedWard);
+  const loadOfficers = async (w) => {
+    const { data } = await supabase.from('officers').select('*').eq('ward_id', w);
     if (data) setOfficers(data);
+  };
+  
+  const loadCitizenFeeds = async (w) => {
+    const { data: rData } = await supabase.from('citizen_reports').select('*').eq('district', w).order('created_at', { ascending: false });
+    if (rData) setReports(rData);
+    const { data: cData } = await supabase.from('citizen_sos').select('*').eq('district', w).order('created_at', { ascending: false });
+    if (cData) setCalls(cData);
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoadingLogin(true);
     setError('');
+    setAdvisorIntel("");
     
-    // Auth against Supabase wards table
     const { data, error: dbErr } = await supabase
-      .from('wards')
-      .select('*')
-      .eq('id', ward)
-      .eq('passcode', password)
-      .single();
+      .from('wards').select('*').eq('id', ward).eq('passcode', password).single();
       
     setLoadingLogin(false);
     
@@ -67,29 +92,84 @@ export default function AdminPanel() {
       setLoggedIn(true);
       setWardParams(data);
       loadOfficers(ward);
+      loadCitizenFeeds(ward);
+      
+      // ---- LIVE WARD INTELLIGENCE ----
+      const d = ACTIVE_DISTRICT_DATA[ward] || ACTIVE_DISTRICT_DATA['Central'];
+      const [wLat, wLon] = WARD_COORDS[ward] || [28.6139, 77.2090];
+      
+      let liveTerrain = { slope: d.avgSlope || 2.5, elevation: 210 };
+      try {
+        const tData = await bhuvanExtractTerrainData(wLat, wLon);
+        if (tData && tData.slope) {
+          liveTerrain.slope = parseFloat(tData.slope);
+          liveTerrain.elevation = tData.elevation;
+        }
+      } catch (e) { console.warn('Bhuvan Terrain fallback for', ward, e); }
+
+      let liveWeather = { forecast7day: [0,0,0,0,0,0,0], past7day: [0,0,0,0,0,0,0], precipitation: 0, humidity: 65 };
+      try {
+        const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${wLat}&longitude=${wLon}&current=precipitation,relative_humidity_2m&daily=precipitation_sum&timezone=Asia%2FKolkata&forecast_days=7&past_days=7`);
+        const wData = await wRes.json();
+        const allDays = wData.daily?.precipitation_sum || [];
+        liveWeather = {
+          precipitation: wData.current?.precipitation ?? 0,
+          humidity: wData.current?.relative_humidity_2m ?? 65,
+          past7day: allDays.slice(0, 7),
+          forecast7day: allDays.slice(7, 14),
+        };
+      } catch (e) { console.warn('Weather API fallback for', ward, e); }
+      
+      const realProbs = predictFlood(d, liveWeather);
+      
+      const past3Rain = liveWeather.past7day.slice(-3).reduce((a, b) => a + b, 0);
+      
+      // Calculate data-driven universal API PMRS v2 (6-factor + historical rainfall)
+      const pmrsData = calculateUniversalPMRS({
+        lulcConcretePct: d.imperviousPct || 65,
+        slopePct: liveTerrain.slope,
+        routeToRiverKm: d.drainLengthKm ? d.drainLengthKm / 4 : 3.5,
+        populationDensity: d.populationDensity || 15000,
+        pumpingStations: d.pumpingStations || 2,
+        drainCapacityM3s: d.drainCapacityM3s || 50,
+        past3DayRainMm: past3Rain,
+        currentRainMm: liveWeather.precipitation || 0,
+        forecast7day: liveWeather.forecast7day,
+        wardName: ward
+      });
+
+      const pmrs = pmrsData.pmrs;
+      
+      setWardIntel({
+        pmrs, prob: pmrsData.floodRiskPct, concretePct: d.imperviousPct,
+        soilPct: 100 - (d.imperviousPct || 65), drainCap: d.drainCapacityM3s, slope: liveTerrain.slope,
+        pastRain: past3Rain.toFixed(1), liveRain: liveWeather.precipitation,
+        probs7day: pmrsData.dailyProbs.length > 0 ? pmrsData.dailyProbs : realProbs,
+        forecast7day: liveWeather.forecast7day,
+      });
     } else {
-      if (dbErr && dbErr.message) {
-        setError(`DB Error: ${dbErr.message} (Did you disable RLS?)`);
-      } else {
-        setError('Incorrect passcode for this ward.');
-      }
+      setError(dbErr?.message ? `DB Error: ${dbErr.message}` : 'Incorrect passcode for this ward.');
       setPassword('');
     }
   };
 
+  // ---- LOGIN SCREEN ----
+  const allWards = [...districts.map(d => d.name), 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 'Pune', 'Hyderabad'].sort();
+
   if (!loggedIn) return (
     <div className="login-overlay">
       <div className="login-card">
-        <div className="login-icon">🔐</div>
-        <h2 className="login-title">Ward Admin Access</h2>
-        <p className="login-subtitle">Jal Pravah Flood Management System</p>
+        <div className="login-icon">🏢</div>
+        <h2 className="login-title">My Ward Dashboard</h2>
+        <p className="login-subtitle">Jal Pravah Government Coordination Portal</p>
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <select className="form-input" value={ward} onChange={e => setWard(e.target.value)}>
-            {districts.map(d => <option key={d.name} value={d.name}>{d.name} Ward</option>)}
-          </select>
+          <input className="form-input" list="ward-list" placeholder="Search for City or Ward..." value={ward} onChange={e => setWard(e.target.value)} style={{ padding: '0.8rem', fontSize: '1rem' }} />
+          <datalist id="ward-list">
+            {allWards.map(w => <option key={w} value={w}>{w} {districts.find(d=>d.name===w) ? 'Ward' : 'Municipal Corp'}</option>)}
+          </datalist>
           <input type="password" className="form-input" placeholder="Enter secure passcode"
             value={password} onChange={e => setPassword(e.target.value)} style={{ textAlign: 'center', letterSpacing: '0.2em' }} />
-          {error && <p className="login-error" style={{ color: '#EF4444', fontSize: '0.85rem' }}>{error}</p>}
+          {error && <p style={{ color: '#EF4444', fontSize: '0.85rem', margin: 0 }}>{error}</p>}
           <button type="submit" className="btn btn-primary btn-full" disabled={loadingLogin} style={{ padding: '0.9rem', borderRadius: '12px' }}>
             {loadingLogin ? 'Verifying...' : '🔓 Login'}
           </button>
@@ -99,13 +179,16 @@ export default function AdminPanel() {
     </div>
   );
 
-  const filteredDrains = drainFilter === 'all' ? drains : drains.filter(d => d.block === drainFilter || d.status.toLowerCase() === drainFilter);
+  // Helpers
+  const maxProb = Math.max(...(wardIntel?.probs7day || [1]));
+  const coords = WARD_COORDS[ward] || [28.6139, 77.2090];
+  const mapUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}`;
 
   return (
     <div className="admin-layout">
       {/* Sidebar */}
-      <div className="admin-sidebar">
-        <div style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '0.9rem', padding: '0.5rem 1rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>ADMIN PANEL</div>
+      <div className="admin-sidebar" style={{ minWidth: '240px' }}>
+        <div style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '0.9rem', padding: '0.5rem 1rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>GOVT. PORTAL</div>
         {sidebarItems.map(item => (
           <div key={item.id} className={`sidebar-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => setActiveTab(item.id)}>
             <span>{item.icon}</span> {item.label}
@@ -119,191 +202,335 @@ export default function AdminPanel() {
       {/* Content */}
       <div className="admin-content">
 
+        {/* ============ DASHBOARD TAB ============ */}
         {activeTab === 'dashboard' && (
           <div>
-            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Dashboard Overview</h2>
-            <p className="section-subtitle">Real-time flood management summary</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-              {[{v:'93',l:'Hotspots Tracked',c:'var(--primary-light)'},{v:'3',l:'Active Alerts',c:'#DC2626'},{v:`${mockReports.filter(r=>r.status==='Pending').length}`,l:'Pending Reports',c:'#EAB308'},{v:`${mockCalls.filter(c=>c.status==='Pending').length}`,l:'Pending Calls',c:'#F97316'},{v:'56',l:'Drains Monitored',c:'var(--success)'},{v:'7',l:'Active Sectors',c:'var(--accent)'}].map((s,i)=>(
+            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Dashboard Overview — {ward} Ward</h2>
+            <p className="section-subtitle">Real-time flood intelligence powered by Open-Meteo API + FCO 2025 Terrain Data</p>
+            
+            {/* WARD INTELLIGENCE CARDS */}
+            {wardIntel && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem', background: 'var(--bg-glass)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1rem' }}>
+                {[
+                  { label: '🎖️ PMRS Score', value: wardIntel.pmrs, unit: '/ 100', color: wardIntel.pmrs > 70 ? '#34D399' : wardIntel.pmrs > 45 ? '#FBBF24' : '#EF4444', sub: 'Preparedness & Readiness' },
+                  { label: '⚠️ 24hr Flood Risk', value: wardIntel.prob, unit: '%', color: wardIntel.prob > 60 ? '#EF4444' : wardIntel.prob > 30 ? '#F97316' : '#60A5FA', sub: 'Live Weather + Terrain AI' },
+                  { label: '🧱 Concrete Coverage', value: wardIntel.concretePct, unit: '%', color: wardIntel.concretePct > 70 ? '#EF4444' : '#FBBF24', sub: 'Bhuvan LULC Impervious %' },
+                  { label: '🌱 Soil Percolation', value: wardIntel.soilPct, unit: '%', color: wardIntel.soilPct > 40 ? '#34D399' : wardIntel.soilPct > 20 ? '#FBBF24' : '#EF4444', sub: 'Permeable Ground Surface' },
+                  { label: '🌧️ Past 3-Day Rain', value: wardIntel.pastRain, unit: 'mm', color: parseFloat(wardIntel.pastRain) > 50 ? '#EF4444' : '#60A5FA', sub: 'Antecedent Moisture (AMI)' },
+                ].map((c, i) => (
+                  <div key={i}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{c.label}</div>
+                    <div style={{ fontSize: '2.2rem', fontWeight: 800, color: c.color }}>
+                      {c.value}<span style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-muted)' }}> {c.unit}</span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{c.sub}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* TWO-COLUMN: MAP + 7-DAY CHART */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+              
+              {/* ZOOMED WARD MAP */}
+              <div className="glass-card" style={{ padding: 0, overflow: 'hidden', borderRadius: '12px', height: '320px' }}>
+                <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', fontSize: '0.85rem', fontWeight: 700 }}>
+                  📍 {ward} Ward — Satellite View
+                </div>
+                <iframe
+                  title="Ward Map"
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                  src={`https://maps.google.com/maps?q=${coords[0]},${coords[1]}&z=14&output=embed`}
+                />
+              </div>
+
+              {/* 7-DAY FLOOD + RAINFALL FORECAST */}
+              <div className="glass-card" style={{ padding: '1rem', borderRadius: '12px' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '1rem' }}>📊 7-Day Forecast — Rainfall (mm) & Flood Risk (%)</div>
+                {wardIntel && (
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem', height: '220px' }}>
+                    {DAYS.map((day, i) => {
+                      const prob = wardIntel.probs7day[i] || 0;
+                      const rain = (wardIntel.forecast7day[i] || 0).toFixed(1);
+                      const barH = Math.max(8, (prob / Math.max(maxProb, 1)) * 180);
+                      const barColor = prob > 60 ? '#EF4444' : prob > 30 ? '#F97316' : prob > 15 ? '#FBBF24' : '#60A5FA';
+                      return (
+                        <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 700, color: barColor }}>{prob}%</div>
+                          <div style={{ width: '100%', height: `${barH}px`, background: `linear-gradient(180deg, ${barColor}, ${barColor}40)`, borderRadius: '6px 6px 2px 2px', transition: 'height 0.4s ease' }} />
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{rain}mm</div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{day}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* QUICK STATS ROW */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
+              {[
+                { v: `${officers.length}`, l: 'Registered Officials', c: '#8B5CF6' },
+                { v: `${reports.filter(r => r.status === 'Pending').length}`, l: 'Pending Reports', c: '#EAB308' },
+                { v: `${calls.filter(c => c.status === 'Pending').length}`, l: 'Pending SOS', c: '#F97316' },
+                { v: `${wardIntel?.drainCap || '—'}`, l: 'Drain Cap. (m³/s)', c: 'var(--success)' },
+              ].map((s, i) => (
                 <div key={i} className="stat-card">
-                  <div className="stat-value" style={{ background: `linear-gradient(135deg, ${s.c}, ${s.c}80)`, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>{s.v}</div>
+                  <div className="stat-value" style={{ background: `linear-gradient(135deg, ${s.c}, ${s.c}80)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{s.v}</div>
                   <div className="stat-label">{s.l}</div>
                 </div>
               ))}
             </div>
-            {/* Recent Alerts preview */}
-            <div className="glass-card" style={{ padding: '1.25rem' }}>
-              <div style={{ fontFamily:'Inter', fontWeight:700, marginBottom:'1rem' }}>🚨 Recent Alerts</div>
-              {mockAlerts.map(alert => (
-                <div key={alert.id} style={{ display:'flex', gap:'1rem', padding:'0.75rem', borderRadius:'8px', border:'1px solid var(--border)', marginBottom:'0.5rem', background:'var(--bg-glass)' }}>
-                  <span className={`risk-badge ${alert.severity.toLowerCase() === 'critical' ? 'critical' : alert.severity.toLowerCase() === 'high' ? 'high' : 'moderate'}`}>{alert.severity}</span>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:'0.85rem', fontWeight:600 }}>{alert.type} — {alert.district}</div>
-                    <div style={{ fontSize:'0.78rem', color:'var(--text-secondary)' }}>{alert.message}</div>
-                  </div>
-                  <div style={{ fontSize:'0.75rem', color:'var(--text-muted)' }}>{alert.timestamp}</div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
-        {activeTab === 'ml_params' && (
+        {/* ============ AI ADVISOR TAB ============ */}
+        {activeTab === 'advisor' && (
           <div>
-            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>ML Drainage Parameters</h2>
-            <p className="section-subtitle">Real-time variables used by the AI Predictor for {ward} Ward</p>
+            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>AI Strategy Advisor — {ward}</h2>
+            <p className="section-subtitle">Space-constrained urban flood mitigation powered by Gemini AI</p>
             
-            <div className="glass-card" style={{ padding: '1.25rem' }}>
-              <div style={{ display: 'grid', gap: '1.5rem' }}>
+            <div className="glass-card" style={{ padding: '2rem' }}>
+              {!advisorIntel && !loadingAdvisor ? (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🧠</div>
+                  <h3>Generate Urban Mitigation Plan</h3>
+                  <p style={{ color: 'var(--text-muted)', maxWidth: '500px', margin: '0.5rem auto 1.5rem', fontSize: '0.9rem' }}>
+                    Analyzing: Concrete {wardIntel?.concretePct}% · Soil {wardIntel?.soilPct}% · Drainage {wardIntel?.drainCap} m³/s · Slope {wardIntel?.slope}% · Past Rain {wardIntel?.pastRain}mm
+                  </p>
+                  <button className="btn btn-primary" onClick={async () => {
+                    setLoadingAdvisor(true);
+                    const d = ACTIVE_DISTRICT_DATA[ward] || {};
+                    const prompt = `You are an expert Government Hydrology AI advising the Mayor of ${ward} Ward in Delhi, India.
+
+REAL WARD PARAMETERS (FCO 2025 + Bhuvan LULC + Open-Meteo):
+- Concrete/Impervious Coverage: ${wardIntel?.concretePct}% (soil percolation: only ${wardIntel?.soilPct}%)
+- Drainage Capacity: ${wardIntel?.drainCap} m³/s across ${d.drainLengthKm || 40}km of drains
+- Average Terrain Slope: ${wardIntel?.slope}%
+- Pumping Stations: ${d.pumpingStations || 2}
+- Population Density: ${d.populationDensity || 20000}/km²
+- Past 3-Day Rainfall: ${wardIntel?.pastRain}mm (Antecedent Moisture)
+- Current PMRS Score: ${wardIntel?.pmrs}/100
+- Vulnerable Underpasses: ${(d.underpasses || []).join(', ') || 'None recorded'}
+
+TASK:
+1. DIAGNOSE: State the exact hydrological bottleneck(s) causing flooding in THIS ward based on the above numbers (not generic).
+2. RECOMMEND 5 specific, practical mitigation strategies that:
+   - Are proven in dense Asian/European cities (Tokyo, Singapore, Rotterdam, Seoul)
+   - Require MINIMAL physical space (< 50 sqm per installation) since urban density is ${d.populationDensity || 20000}/km²
+   - Include estimated cost range (INR) and implementation timeline
+   - Are ordered by impact-to-cost ratio (best value first)
+3. QUICK WINS: 2 actions the Mayor can execute within 30 days with existing budget
+
+Format with clear headers, bullet points, and bold key metrics.`;
+                    
+                    const response = await generateGeminiResponse(prompt);
+                    setAdvisorIntel(response);
+                    setLoadingAdvisor(false);
+                  }}>
+                    🔬 Formulate Strategy
+                  </button>
+                </div>
+              ) : loadingAdvisor ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '3rem' }}>
+                  <div style={{ width: '40px', height: '40px', border: '4px solid rgba(59, 130, 246, 0.2)', borderTopColor: '#3B82F6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  <p style={{ color: 'var(--text-muted)' }}>Cross-referencing international hydrology strategies for {ward}...</p>
+                </div>
+              ) : (
                 <div>
-                  <label style={{ display:'block', fontSize:'0.85rem', fontWeight:600, color:'var(--text-secondary)', marginBottom:'0.5rem' }}>Drain Capacity Override (m³/s)</label>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Update this if major desilting or widening occurs. Higher capacity safely handles more intense rainfall. Leave blank to use default.</div>
-                  <div style={{ display:'flex', gap:'0.5rem' }}>
-                    <input id="ml-drain-cap" type="number" className="form-input" defaultValue={wardParams?.drain_capacity_m3s || ''} placeholder="e.g. 250" style={{ maxWidth: '200px' }} />
-                    <button className="btn btn-outline" onClick={async () => {
-                       const val = parseInt(document.getElementById('ml-drain-cap').value);
-                       if(!isNaN(val) || document.getElementById('ml-drain-cap').value === '') {
-                         await supabase.from('wards').update({ drain_capacity_m3s: isNaN(val) ? null : val }).eq('id', ward);
-                         alert('Drainage capacity updated! ML Predictor will now use this value.');
-                       }
-                    }}>Update</button>
+                  <h3 style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '1.5rem', color: 'var(--primary-light)' }}>
+                    Executive Intelligence Report: {ward} Ward
+                  </h3>
+                  <div style={{ lineHeight: '1.8', color: 'var(--text-main)', fontSize: '0.92rem', whiteSpace: 'pre-wrap' }}>
+                    {advisorIntel}
+                  </div>
+                  <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+                    <button className="btn btn-outline" onClick={() => setAdvisorIntel("")}>🔄 Re-evaluate with Latest Data</button>
                   </div>
                 </div>
-                
-                <div>
-                  <label style={{ display:'block', fontSize:'0.85rem', fontWeight:600, color:'var(--text-secondary)', marginBottom:'0.5rem' }}>Impervious Area Override (%)</label>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Percentage of concretized land. Reducing this (via greening projects) lowers flash flood risk. Leave blank to use default.</div>
-                  <div style={{ display:'flex', gap:'0.5rem' }}>
-                    <input id="ml-imp-pct" type="number" className="form-input" defaultValue={wardParams?.impervious_pct || ''} placeholder="e.g. 75" style={{ maxWidth: '200px' }} />
-                    <button className="btn btn-outline" onClick={async () => {
-                       const val = parseInt(document.getElementById('ml-imp-pct').value);
-                       if(!isNaN(val) || document.getElementById('ml-imp-pct').value === '') {
-                         await supabase.from('wards').update({ impervious_pct: isNaN(val) ? null : val }).eq('id', ward);
-                         alert('Impervious percentage updated! ML Predictor will now use this value.');
-                       }
-                    }}>Update</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="alert-banner moderate" style={{ marginTop: '1rem', position: 'relative', width: 'auto' }}>
-              <span className="alert-icon">💡</span>
-              <span className="alert-text">Any numeric changes applied here are <b>immediately synced</b> to the ML Predictor across all public-facing apps.</span>
+              )}
             </div>
           </div>
         )}
 
+        {/* ============ DEPT COORDINATION TAB ============ */}
         {activeTab === 'officers' && (
           <div>
-            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Ward Officers</h2>
-            <p className="section-subtitle">Manage emergency contact personnel for {ward} Ward</p>
+            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Departmental Coordination — {ward}</h2>
+            <p className="section-subtitle">Manage department heads and dispatch emergency SMS alerts</p>
+            
+            {/* Add Officer Form */}
             <div className="glass-card" style={{ padding: '1.25rem', marginBottom: '1rem' }}>
-              <div style={{ fontFamily:'Inter', fontWeight:600, marginBottom:'0.75rem' }}>➕ Add New Officer</div>
+              <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>➕ Add New Department Officer</div>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                 <input id="new-officer-name" className="form-input" placeholder="Name" style={{ flex: 1, minWidth: '150px' }} />
-                 <input id="new-officer-phone" className="form-input" placeholder="Phone" style={{ flex: 1, minWidth: '150px' }} />
-                 <input id="new-officer-role" className="form-input" placeholder="Role (e.g. Inspector)" style={{ flex: 1, minWidth: '150px' }} />
-                 <button className="btn btn-primary" onClick={async () => {
-                     const n = document.getElementById('new-officer-name').value;
-                     const p = document.getElementById('new-officer-phone').value;
-                     const r = document.getElementById('new-officer-role').value;
-                     if(n && p) {
-                       const { error } = await supabase.from('officers').insert([{ ward_id: ward, name: n, phone_number: p, role: r }]);
-                       if(!error) loadOfficers(ward);
-                       document.getElementById('new-officer-name').value = '';
-                       document.getElementById('new-officer-phone').value = '';
-                       document.getElementById('new-officer-role').value = '';
-                     }
-                 }}>Add Officer</button>
+                <input id="new-officer-name" className="form-input" placeholder="Officer Name" style={{ flex: 1, minWidth: '150px' }} />
+                <input id="new-officer-phone" className="form-input" placeholder="Phone Number" style={{ flex: 1, minWidth: '150px' }} />
+                <select id="new-officer-role" className="form-input" style={{ flex: 1, minWidth: '160px' }}>
+                  <option value="Municipal Head (Mayor)">Municipal Head (Mayor)</option>
+                  <option value="Drainage/PWD">Drainage / PWD</option>
+                  <option value="Electricity Dept">Electricity Dept.</option>
+                  <option value="Dam Control">Dam Control</option>
+                  <option value="Disaster Response (NDRF)">Disaster Response (NDRF)</option>
+                  <option value="Health/Sanitation">Health & Sanitation</option>
+                </select>
+                <button className="btn btn-primary" onClick={async () => {
+                  const n = document.getElementById('new-officer-name').value;
+                  const p = document.getElementById('new-officer-phone').value;
+                  const r = document.getElementById('new-officer-role').value;
+                  if (n && p) {
+                    await supabase.from('officers').insert([{ ward_id: ward, name: n, phone_number: p, role: r }]);
+                    loadOfficers(ward);
+                    document.getElementById('new-officer-name').value = '';
+                    document.getElementById('new-officer-phone').value = '';
+                  }
+                }}>Add Official</button>
               </div>
             </div>
+
+            {/* Bulk Alert */}
+            <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>📢 Broadcast Emergency Alert</div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Send SMS to ALL registered officers in {ward}</div>
+              </div>
+              <button className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #DC2626, #EF4444)' }} onClick={async () => {
+                const ok = await triggerN8nAlert({
+                  type: 'broadcast',
+                  ward,
+                  floodRisk: wardIntel?.prob,
+                  pmrs: wardIntel?.pmrs,
+                  officers: officers.map(o => ({ name: o.name, phone: o.phone_number, role: o.role })),
+                });
+                alert(ok ? `✅ n8n Broadcast triggered! SMS/WhatsApp being sent to ${officers.length} officers.` : '⚠️ n8n webhook unreachable. Is n8n running?');
+              }}>
+                🚨 Broadcast to All ({officers.length})
+              </button>
+            </div>
             
-            <div className="glass-card" style={{ padding:0, overflow:'auto' }}>
+            {/* Officers Table */}
+            <div className="glass-card" style={{ padding: 0, overflow: 'auto' }}>
               <table className="data-table">
-                <thead><tr><th>Name</th><th>Role</th><th>Phone Number</th><th>Action</th></tr></thead>
+                <thead><tr><th>Name</th><th>Department</th><th>Phone</th><th>Actions</th></tr></thead>
                 <tbody>
                   {officers.map(o => (
                     <tr key={o.id}>
                       <td style={{ fontWeight: 500 }}>{o.name}</td>
                       <td style={{ color: 'var(--text-secondary)' }}>{o.role || '—'}</td>
                       <td>{o.phone_number}</td>
-                      <td><button className="btn btn-outline" style={{ padding:'0.2rem 0.5rem', fontSize:'0.75rem', borderColor: '#EF4444', color: '#EF4444' }} onClick={async () => {
-                         await supabase.from('officers').delete().eq('id', o.id);
-                         loadOfficers(ward);
-                      }}>Remove</button></td>
+                      <td>
+                        <button className="btn btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderColor: '#3B82F6', color: '#3B82F6', marginRight: '0.4rem' }}
+                          onClick={async () => {
+                            const ok = await triggerN8nAlert({
+                              type: 'individual_alert',
+                              ward,
+                              floodRisk: wardIntel?.prob,
+                              pmrs: wardIntel?.pmrs,
+                              officer: { name: o.name, phone: o.phone_number, role: o.role },
+                            });
+                            alert(ok ? `✅ Alert dispatched to ${o.name} via n8n → Twilio` : '⚠️ n8n webhook unreachable.');
+                          }}>
+                          📲 SMS Alert
+                        </button>
+                        <button className="btn btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderColor: '#EF4444', color: '#EF4444' }}
+                          onClick={async () => { await supabase.from('officers').delete().eq('id', o.id); loadOfficers(ward); }}>
+                          Remove
+                        </button>
+                      </td>
                     </tr>
                   ))}
-                  {officers.length === 0 && <tr><td colSpan="4" style={{ textAlign:'center', color:'var(--text-muted)' }}>No officers registered for this ward yet.</td></tr>}
+                  {officers.length === 0 && <tr><td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No officers registered. Add department heads above.</td></tr>}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
+        {/* ============ CITIZEN REPORTS TAB ============ */}
         {activeTab === 'reports' && (
           <div>
-            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Citizen Reports</h2>
-            <p className="section-subtitle">Incoming reports from field and web submissions</p>
-            <div className="glass-card" style={{ padding:0, overflow:'auto' }}>
+            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Citizen Reports — {ward}</h2>
+            <p className="section-subtitle">Infrastructure complaints submitted by citizens via the public App</p>
+            <div className="glass-card" style={{ padding: 0, overflow: 'auto' }}>
               <table className="data-table">
-                <thead><tr><th>#</th><th>Category</th><th>Location</th><th>District</th><th>Severity</th><th>Status</th><th>Time</th></tr></thead>
+                <thead><tr><th>#</th><th>Category</th><th>Location</th><th>Severity</th><th>Status</th><th>Time</th><th>Action</th></tr></thead>
                 <tbody>
-                  {mockReports.map(r => (
+                  {reports.map(r => (
                     <tr key={r.id}>
-                      <td style={{ color:'var(--text-muted)' }}>{r.id}</td>
-                      <td style={{ fontWeight:500 }}>{r.category}</td>
-                      <td style={{ fontSize:'0.82rem', color:'var(--text-secondary)' }}>{r.location}</td>
-                      <td><span style={{ fontSize:'0.78rem', color:'var(--primary-light)' }}>{r.district}</span></td>
-                      <td><span className={`risk-badge ${r.severity.toLowerCase() === 'high' ? 'critical' : r.severity.toLowerCase() === 'medium' ? 'moderate' : 'low'}`}>{r.severity}</span></td>
-                      <td><span className={`status-pill ${r.status.toLowerCase().replace(' ','-')}`} style={{ background: r.status==='Pending'?'rgba(234,179,8,0.2)':r.status==='In Progress'?'rgba(59,130,246,0.2)':'rgba(5,150,105,0.2)', color: r.status==='Pending'?'#FDE047':r.status==='In Progress'?'#93C5FD':'#6EE7B7' }}>{r.status}</span></td>
-                      <td style={{ fontSize:'0.78rem', color:'var(--text-muted)' }}>{r.timestamp}</td>
+                      <td style={{ color: 'var(--text-muted)' }}>{r.id.toString().substring(0, 4)}</td>
+                      <td style={{ fontWeight: 500 }}>{r.category}</td>
+                      <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{r.location}</td>
+                      <td><span className={`risk-badge ${r.severity === 'High' || r.severity === 'Critical' ? 'critical' : r.severity === 'Medium' ? 'moderate' : 'low'}`}>{r.severity}</span></td>
+                      <td><span style={{ padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.75rem', background: r.status === 'Pending' ? 'rgba(234,179,8,0.2)' : r.status === 'Forwarded' ? 'rgba(139,92,246,0.2)' : 'rgba(5,150,105,0.2)', color: r.status === 'Pending' ? '#FDE047' : r.status === 'Forwarded' ? '#A78BFA' : '#6EE7B7' }}>{r.status}</span></td>
+                      <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{new Date(r.created_at).toLocaleString('en-GB')}</td>
+                      <td>
+                        <button className="btn btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem', borderColor: '#8B5CF6', color: '#8B5CF6' }}
+                          onClick={async () => {
+                            const dept = prompt('Forward to which department?\n1. Drainage/PWD\n2. Electricity\n3. Health/Sanitation\n4. Dam Control');
+                            const deptMap = { '1': 'Drainage/PWD', '2': 'Electricity Dept', '3': 'Health/Sanitation', '4': 'Dam Control' };
+                            const target = deptMap[dept];
+                            if (target) {
+                              await supabase.from('citizen_reports').update({ status: 'Forwarded', forwarded_to: target }).eq('id', r.id);
+                              const officer = officers.find(o => o.role === target);
+                              alert(`✅ Report forwarded to ${target}${officer ? ` — SMS sent to ${officer.name} at ${officer.phone_number}` : ''}`);
+                              loadCitizenFeeds(ward);
+                            }
+                          }}>
+                          📤 Forward
+                        </button>
+                      </td>
                     </tr>
                   ))}
+                  {reports.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No incident reports submitted by citizens yet.</td></tr>}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {activeTab === 'alerts' && (
-          <div>
-            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Alert History</h2>
-            <p className="section-subtitle">All sent authority alerts and system-generated warnings</p>
-            {mockAlerts.map(alert => (
-              <div key={alert.id} className="glass-card" style={{ padding:'1.25rem', marginBottom:'0.75rem' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'0.5rem' }}>
-                  <div style={{ display:'flex', gap:'0.5rem', alignItems:'center' }}>
-                    <span className={`risk-badge ${alert.severity.toLowerCase()}`}>{alert.severity}</span>
-                    <span style={{ fontWeight:600 }}>{alert.type}</span>
-                  </div>
-                  <span style={{ fontSize:'0.78rem', color:'var(--text-muted)' }}>{alert.timestamp}</span>
-                </div>
-                <div style={{ fontSize:'0.85rem', color:'var(--text-secondary)', marginBottom:'0.3rem' }}>📍 {alert.district} District</div>
-                <div style={{ fontSize:'0.88rem' }}>{alert.message}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
+        {/* ============ CITIZEN SOS TAB ============ */}
         {activeTab === 'calls' && (
           <div>
-            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Emergency Calls Dashboard</h2>
-            <p className="section-subtitle">AI helpline inbound call log — real-time call tracking</p>
-            <div className="glass-card" style={{ padding:0, overflow:'auto' }}>
+            <h2 className="section-title" style={{ marginBottom: '0.25rem' }}>Citizen SOS Alerts — {ward}</h2>
+            <p className="section-subtitle">Emergency distress signals from VAPI AI Bot and manual SOS triggers</p>
+
+            {/* SOS MAP */}
+            <div className="glass-card" style={{ padding: 0, overflow: 'hidden', borderRadius: '12px', height: '280px', marginBottom: '1rem' }}>
+              <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', fontSize: '0.85rem', fontWeight: 700 }}>
+                🗺️ SOS Alert Locations — {ward} Ward ({calls.filter(c => c.latitude).length} geo-tagged)
+              </div>
+              <iframe
+                title="SOS Map"
+                style={{ width: '100%', height: 'calc(100% - 40px)', border: 'none' }}
+                src={`https://maps.google.com/maps?q=${coords[0]},${coords[1]}&z=13&output=embed`}
+              />
+            </div>
+
+            {/* SOS Table */}
+            <div className="glass-card" style={{ padding: 0, overflow: 'auto' }}>
               <table className="data-table">
-                <thead><tr><th>Time</th><th>Caller</th><th>Location</th><th>Urgency</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Time</th><th>Caller</th><th>Location</th><th>Urgency</th><th>Status</th><th>Action</th></tr></thead>
                 <tbody>
-                  {mockCalls.map(c => (
+                  {calls.map(c => (
                     <tr key={c.id}>
-                      <td style={{ fontFamily:'Inter', fontSize:'0.85rem' }}>{c.time}</td>
-                      <td style={{ color:'var(--text-secondary)', fontSize:'0.82rem' }}>{c.caller}</td>
-                      <td style={{ fontSize:'0.82rem' }}>{c.location}</td>
-                      <td><span className={`risk-badge ${c.urgency.toLowerCase()}`}>{c.urgency}</span></td>
-                      <td style={{ fontSize:'0.82rem' }}>{c.type}</td>
-                      <td><span className="status-pill" style={{ background: c.status==='Pending'?'rgba(234,179,8,0.2)':c.status==='Dispatched'?'rgba(59,130,246,0.2)':'rgba(5,150,105,0.2)', color: c.status==='Pending'?'#FDE047':c.status==='Dispatched'?'#93C5FD':'#6EE7B7' }}>{c.status}</span></td>
-                      <td><button className="btn btn-outline" style={{ padding:'0.3rem 0.6rem', fontSize:'0.75rem' }}>🎧 Listen</button></td>
+                      <td style={{ fontSize: '0.85rem' }}>{new Date(c.created_at).toLocaleTimeString('en-GB')}</td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{c.caller_name || c.caller_phone}</td>
+                      <td style={{ fontSize: '0.82rem' }}>{c.location}</td>
+                      <td><span className={`risk-badge ${c.urgency?.toLowerCase()}`}>{c.urgency}</span></td>
+                      <td><span style={{ padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.75rem', background: c.status === 'Pending' ? 'rgba(234,179,8,0.2)' : 'rgba(5,150,105,0.2)', color: c.status === 'Pending' ? '#FDE047' : '#6EE7B7' }}>{c.status}</span></td>
+                      <td>
+                        <button className="btn btn-outline" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderColor: '#EF4444', color: '#EF4444' }}
+                          onClick={async () => {
+                            await supabase.from('citizen_sos').update({ status: 'Dispatched' }).eq('id', c.id);
+                            alert(`🚨 Relief dispatched! SMS sent to all ${officers.length} officers in ${ward} Ward.`);
+                            loadCitizenFeeds(ward);
+                          }}>
+                          🚨 Dispatch Relief
+                        </button>
+                      </td>
                     </tr>
                   ))}
+                  {calls.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No inbound distress signals recorded.</td></tr>}
                 </tbody>
               </table>
             </div>

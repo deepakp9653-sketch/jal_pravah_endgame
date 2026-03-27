@@ -4,7 +4,7 @@ export default function IntroPage({ onStart }) {
   const [typedText, setTypedText] = useState('');
   const [showButton, setShowButton] = useState(false);
   
-  const fullText = "Intelligent Urban Flood Management & AI Prediction System";
+  const fullText = "Government Coordination Portal & Flood Intelligence System";
 
   useEffect(() => {
     let i = 0;
@@ -28,10 +28,10 @@ export default function IntroPage({ onStart }) {
       
       <div className="intro-content">
         <div className="intro-logo-container">
-          <span className="intro-icon">🌊</span>
+          <img src="/logo_jalpravah.png" alt="Jal Pravah Logo" style={{ height: '80px', objectFit: 'contain' }} className="intro-icon-img" />
         </div>
         
-        <h1 className="intro-title">JAL PRAVAH</h1>
+        <h1 className="intro-title">JAL PRAVAH COMMAND CENTER</h1>
         
         <p className="intro-subtitle">
           {typedText}
@@ -40,13 +40,13 @@ export default function IntroPage({ onStart }) {
 
         <div className="intro-features">
           <div className="intro-feature">
-            <span>🗺️</span> 93 Hotspot Monitoring
+            <span>🚨</span> Multi-Agency Coordination
           </div>
           <div className="intro-feature">
-            <span>🤖</span> Bhuvan & Gemini AI
+            <span>🤖</span> Deep AI Terrain Analysis
           </div>
           <div className="intro-feature">
-            <span>📊</span> PMRS Analytics
+            <span>📊</span> CWC Standard Analytics
           </div>
         </div>
 
@@ -54,12 +54,12 @@ export default function IntroPage({ onStart }) {
           className={`intro-start-btn ${showButton ? 'visible' : ''}`}
           onClick={onStart}
         >
-          Enter Dashboard <span style={{ marginLeft: '0.5rem' }}>→</span>
+          Access Command Portal <span style={{ marginLeft: '0.5rem' }}>→</span>
         </button>
       </div>
       
       <div className="intro-footer">
-        Powered by Open-Meteo, FCO 2025 Data & Google AI
+        Strictly for use by Authorized Government Personnel & Mayors
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { predictFlood } from '../utils/floodML';
-import { bhuvanReverseGeocode } from '../utils/bhuvan-api';
+import { bhuvanReverseGeocode, bhuvanExtractTerrainData } from '../utils/bhuvan-api';
 import { hotspots, districts } from '../data/hotspots';
 
 function getDistanceMiles(lat1, lon1, lat2, lon2) {
@@ -34,13 +34,14 @@ export default function CitizenRisk() {
       const { latitude, longitude } = position.coords;
       
       try {
-        // 1. ISRO Bhuvan Reverse Geocoding
+        // 1. ISRO Bhuvan Reverse Geocoding & Terrain Extraction
         const bhuvanRes = await bhuvanReverseGeocode(latitude, longitude);
         let bhuvanArea = "Unknown Area";
         if (bhuvanRes && !bhuvanRes.error && Array.isArray(bhuvanRes)) {
-            // Usually bhuvan returns array of matches
             bhuvanArea = bhuvanRes[0]?.villagename || bhuvanRes[0]?.district || "Local Area";
         }
+        
+        const terrainData = await bhuvanExtractTerrainData(latitude, longitude);
 
         // 2. Find nearest mapped district based on predefined hotspots
         let nearestDist = null;
@@ -78,6 +79,7 @@ export default function CitizenRisk() {
             lat: latitude.toFixed(4),
             lng: longitude.toFixed(4),
             bhuvanArea,
+            terrainData,
             district: targetDistrict,
             probability: simulatedRainRisk,
             label: riskLabel,
@@ -134,6 +136,20 @@ export default function CitizenRisk() {
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Mapped Zone</div>
                     <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>{riskData.district} District</div>
                 </div>
+                {riskData.terrainData && (
+                  <>
+                    <div style={{ background: 'var(--bg-dark)', padding: '1rem', borderRadius: 'var(--radius)' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Terrain Elevation</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 600, color: '#60A5FA' }}>{riskData.terrainData.elevation} meters</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>{riskData.terrainData.source}</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-dark)', padding: '1rem', borderRadius: 'var(--radius)' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Morphology & Slope</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 600, color: '#34D399' }}>{riskData.terrainData.terrain}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>Average Slope: {riskData.terrainData.slope}°</div>
+                    </div>
+                  </>
+                )}
              </div>
 
              <h3 style={{ marginBottom: '1rem' }}>Real-time ML Flood Risk (Assuming 35mm Rainfall)</h3>

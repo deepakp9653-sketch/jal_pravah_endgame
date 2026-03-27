@@ -1,0 +1,499 @@
+{
+  "name": "Jal Pravah Flood Alert System",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "a86098d8-b3f4-41a0-be95-9e768826788e",
+      "name": "Every 30 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        240,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "duplicateItem": true,
+        "duplicateCount": 10,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "wardIndex",
+              "value": "={{ $itemIndex }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f0bb8bb3-f7a2-4adb-8435-ff195dff5870",
+      "name": "Create Ward Items",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        464,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "completedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "totalWards",
+              "value": 11,
+              "type": "number"
+            },
+            {
+              "id": "3",
+              "name": "status",
+              "value": "Monitoring cycle complete",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "30330cf0-4e82-416b-a081-547a80ac273b",
+      "name": "All Wards Processed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        912,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const wardData = [\n  { name: 'Central', lat: 28.6353, lon: 77.2250, drainCap: 185, concrete: 92, slope: 0.15, underpasses: 'Minto Bridge, Azad Market' },\n  { name: 'North', lat: 28.7280, lon: 77.1580, drainCap: 260, concrete: 65, slope: 0.22, underpasses: 'None' },\n  { name: 'North East', lat: 28.7050, lon: 77.2650, drainCap: 140, concrete: 78, slope: 0.12, underpasses: 'None' },\n  { name: 'North West', lat: 28.7350, lon: 77.0600, drainCap: 380, concrete: 55, slope: 0.18, underpasses: 'None' },\n  { name: 'East', lat: 28.6280, lon: 77.3100, drainCap: 195, concrete: 80, slope: 0.14, underpasses: 'None' },\n  { name: 'West', lat: 28.6520, lon: 77.0650, drainCap: 290, concrete: 62, slope: 0.20, underpasses: 'None' },\n  { name: 'South', lat: 28.5245, lon: 77.2066, drainCap: 410, concrete: 58, slope: 0.25, underpasses: 'None' },\n  { name: 'South East', lat: 28.5680, lon: 77.2850, drainCap: 175, concrete: 72, slope: 0.13, underpasses: 'None' },\n  { name: 'South West', lat: 28.5750, lon: 77.0800, drainCap: 450, concrete: 42, slope: 0.28, underpasses: 'None' },\n  { name: 'New Delhi', lat: 28.6139, lon: 77.2090, drainCap: 150, concrete: 85, slope: 0.16, underpasses: 'Minto Bridge, Safdarjung' },\n  { name: 'Shahdara', lat: 28.6750, lon: 77.2900, drainCap: 110, concrete: 82, slope: 0.11, underpasses: 'None' }\n];\n\nconst ward = wardData[$input.item.json.wardIndex];\nreturn { ...ward };"
+      },
+      "id": "a9d638ae-9fe6-4ce3-ad26-a8de859b3f79",
+      "name": "Get Current Ward Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.open-meteo.com/v1/forecast?latitude={{ $json.lat }}&longitude={{ $json.lon }}&current=precipitation,relative_humidity_2m&daily=precipitation_sum&timezone=Asia%2FKolkata&forecast_days=7&past_days=7",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "1f34c090-bdbe-4d1b-97c4-57a9e0ad3561",
+      "name": "Fetch Weather Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1136,
+        400
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ward = $('Get Current Ward Data').item.json;\nconst weather = $json;\n\n// Extract rainfall data\nconst todayRain = weather.daily.precipitation_sum[7] || 0;\nconst past3Rain = (weather.daily.precipitation_sum[4] || 0) + \n                  (weather.daily.precipitation_sum[5] || 0) + \n                  (weather.daily.precipitation_sum[6] || 0);\n\n// Calculate PMRS Score\nconst drainageScore = (ward.drainCap / 450) * 30;\nconst soilPercolation = (100 - ward.concrete) * 0.25;\nlet slopeScore = 30;\nif (ward.slope <= 0.12) slopeScore = 30;\nelse if (ward.slope <= 0.18) slopeScore = 55;\nelse if (ward.slope <= 0.25) slopeScore = 70;\nelse slopeScore = 80;\nslopeScore = slopeScore * 0.15;\nconst infraDensity = 15;\nconst amiPenalty = Math.min(40, (past3Rain / 100) * 40);\nconst pmrs = Math.round(drainageScore + soilPercolation + slopeScore + infraDensity - amiPenalty);\n\n// Calculate Flood Risk\nconst baseRisk = Math.min(98, todayRain * 1.2);\nconst soilPenalty = (ward.concrete / 100) * 0.4;\nconst amiPenaltyFactor = (past3Rain / 100) * 0.3;\nconst drainBonus = (ward.drainCap / 450) * 0.2;\nconst finalRisk = Math.round(baseRisk * (1 + soilPenalty + amiPenaltyFactor - drainBonus));\n\nreturn {\n  wardName: ward.name,\n  lat: ward.lat,\n  lon: ward.lon,\n  drainCap: ward.drainCap,\n  concrete: ward.concrete,\n  slope: ward.slope,\n  underpasses: ward.underpasses,\n  todayRain: todayRain.toFixed(1),\n  past3Rain: past3Rain.toFixed(1),\n  pmrs: pmrs,\n  floodRisk: finalRisk\n};"
+      },
+      "id": "702f853c-4faa-481d-b6be-d20877746607",
+      "name": "Calculate Flood Risk",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.floodRisk }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 60,
+              "id": "d5864b6f-5702-4cd5-9171-7427bf016772"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4a49fd76-9255-4b79-83a8-ac80df9ef26a",
+      "name": "Risk > 60%?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1584,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "officers",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "ward_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.wardName }}"
+            }
+          ]
+        }
+      },
+      "id": "72a9cfc0-6048-41bf-9265-2b16199ab55d",
+      "name": "Get Ward Officers",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1808,
+        304
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "hbMtpXC7yjtkixYh",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "from": "+14782173530",
+        "to": "={{ $json.phone_number }}",
+        "message": "=🚨 JAL PRAVAH FLOOD ALERT\nWard: {{ $(\"Calculate Flood Risk\").item.json.wardName }}\n⚠️ Flood Risk: {{ $(\"Calculate Flood Risk\").item.json.floodRisk }}%\n🌧️ Today's Rain: {{ $(\"Calculate Flood Risk\").item.json.todayRain }}mm\n💧 Past 3-Day Rain: {{ $(\"Calculate Flood Risk\").item.json.past3Rain }}mm\n🎖️ PMRS Score: {{ $(\"Calculate Flood Risk\").item.json.pmrs }}/100\n📍 High-Risk Areas: {{ $(\"Calculate Flood Risk\").item.json.underpasses }}\n\nImmediate coordination required.\n— Jal Pravah Command Center (Automated)",
+        "options": {}
+      },
+      "id": "c06403ae-4e33-4fd2-be4a-15fb5c407043",
+      "name": "Send SMS to Officers",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        2032,
+        304
+      ],
+      "credentials": {
+        "twilioApi": {
+          "id": "jh8V9ddWQrK7wYFR",
+          "name": "Twilio account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "alertTime",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "ward",
+              "value": "={{ $(\"Calculate Flood Risk\").item.json.wardName }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "risk",
+              "value": "={{ $(\"Calculate Flood Risk\").item.json.floodRisk }}",
+              "type": "number"
+            },
+            {
+              "id": "4",
+              "name": "officersNotified",
+              "value": "={{ $(\"Get Ward Officers\").all().length }}",
+              "type": "number"
+            },
+            {
+              "id": "5",
+              "name": "mayorNotified",
+              "value": true,
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aaf3ea9d-3dfb-4031-8354-ebed6558d2cb",
+      "name": "Log Alert",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2256,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "d7569109-050b-4fbf-b6b9-ded7b2c16e1e",
+      "name": "Loop Through Wards",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        688,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "wards",
+        "limit": 1,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $(\"Calculate Flood Risk\").item.json.wardName }}"
+            }
+          ]
+        }
+      },
+      "id": "020f11bd-c24b-4aba-a799-6ddf1c7949c1",
+      "name": "Get Ward Mayor",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1808,
+        496
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "hbMtpXC7yjtkixYh",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "from": "+14782173530",
+        "to": "={{ $json.mayor_phone }}",
+        "message": "=🚨 JAL PRAVAH FLOOD ALERT\nWard: {{ $(\"Calculate Flood Risk\").item.json.wardName }}\n⚠️ Flood Risk: {{ $(\"Calculate Flood Risk\").item.json.floodRisk }}%\n🌧️ Today's Rain: {{ $(\"Calculate Flood Risk\").item.json.todayRain }}mm\n💧 Past 3-Day Rain: {{ $(\"Calculate Flood Risk\").item.json.past3Rain }}mm\n🎖️ PMRS Score: {{ $(\"Calculate Flood Risk\").item.json.pmrs }}/100\n📍 High-Risk Areas: {{ $(\"Calculate Flood Risk\").item.json.underpasses }}\n\nImmediate coordination required.\n— Jal Pravah Command Center (Automated)",
+        "options": {}
+      },
+      "id": "793ef308-c742-4a68-929a-1c3a4ecdcb9d",
+      "name": "Send SMS to Mayor",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        2032,
+        496
+      ],
+      "credentials": {
+        "twilioApi": {
+          "id": "jh8V9ddWQrK7wYFR",
+          "name": "Twilio account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 30 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Create Ward Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Ward Items": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Wards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Current Ward Data": {
+      "main": [
+        [
+          {
+            "node": "Fetch Weather Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Weather Data": {
+      "main": [
+        [
+          {
+            "node": "Calculate Flood Risk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Flood Risk": {
+      "main": [
+        [
+          {
+            "node": "Risk > 60%?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risk > 60%?": {
+      "main": [
+        [
+          {
+            "node": "Get Ward Officers",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Ward Mayor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Through Wards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Ward Officers": {
+      "main": [
+        [
+          {
+            "node": "Send SMS to Officers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS to Officers": {
+      "main": [
+        [
+          {
+            "node": "Log Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Alert": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Wards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Through Wards": {
+      "main": [
+        [
+          {
+            "node": "All Wards Processed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Current Ward Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Ward Mayor": {
+      "main": [
+        [
+          {
+            "node": "Send SMS to Mayor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS to Mayor": {
+      "main": [
+        [
+          {
+            "node": "Log Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "72f49764-d57e-4ed0-a25e-40fafd0d6442",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "290b1c0d8e2e5901fc4ffdd7199b9a90492216b7d656dd3f7d42311f19e967a1"
+  },
+  "id": "DcV7MmRcXmS5ZjtF",
+  "tags": []
+}

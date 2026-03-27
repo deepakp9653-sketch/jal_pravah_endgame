@@ -1,8 +1,9 @@
 // Gemini API utility for Jal Pravah — Dual-Key Failover System
 // Primary key provided by user, fallback key as backup
 const GEMINI_KEYS = [
-  'AIzaSyBtGmphiCfAmomS1B0EYKJArmQMKtzxE1o',  // Primary (new)
-  'AIzaSyCSMZTcXyOuGcNK5i11mw4-6HxMJqu5LRE',  // Fallback (original)
+  'AIzaSyAvJEP4gsf2KTwV22YoGBL3bujfBTecZqw',  // Primary (latest)
+  'AIzaSyBtGmphiCfAmomS1B0EYKJArmQMKtzxE1o',  // Fallback 1
+  'AIzaSyCSMZTcXyOuGcNK5i11mw4-6HxMJqu5LRE',  // Fallback 2
 ];
 
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
@@ -30,7 +31,7 @@ function buildGeminiUrl(keyIndex, modelIndex) {
   return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODELS[modelIndex]}:generateContent?key=${GEMINI_KEYS[keyIndex]}`;
 }
 
-async function callGemini(prompt, maxTokens = 100) {
+async function callGemini(prompt, maxTokens = 2048) {
   // Try each key × model combination
   for (let ki = 0; ki < GEMINI_KEYS.length; ki++) {
     for (let mi = 0; mi < GEMINI_MODELS.length; mi++) {
@@ -183,4 +184,9 @@ Return ONLY a JSON array of 5 strings. Example:
     console.warn('Gemini precautions failed:', err.message);
     return { error: err.message };
   }
+}
+
+// Export the raw Gemini caller for the Mayor's AI Strategy Advisor panel
+export async function generateGeminiResponse(prompt) {
+  return callGemini(prompt, 4096);
 }

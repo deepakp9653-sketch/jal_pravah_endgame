@@ -3,14 +3,14 @@ import { HashRouter as Router, Routes, Route, NavLink, Navigate } from 'react-ro
 import './index.css';
 import IntroPage from './components/IntroPage';
 import HomePage from './components/HomePage';
-import PMRSDashboard from './components/PMRSDashboard';
-import FloodPredictor from './components/FloodPredictor';
-import CitizenReport from './components/CitizenReport';
+import DeepAnalysisMap from './components/DeepAnalysisMap';
 import AdminPanel from './components/AdminPanel';
 import HistoricalData from './components/HistoricalData';
+import FloodMap3D from './components/FloodMap3D';
 import AlertBanner from './components/AlertBanner';
-import CitizenRisk from './components/CitizenRisk';
-import VapiSOSButton from './components/VapiSOSButton';
+import BhuvanSetup from './components/BhuvanSetup';
+import GlobalSearchBar from './components/GlobalSearchBar';
+import { LocationProvider } from './context/LocationContext';
 import { refreshMLParams } from './utils/floodML';
 
 export default function App() {
@@ -33,20 +33,23 @@ export default function App() {
   }
 
   return (
-    <Router>
-      <nav className="navbar">
-        <div className="navbar-logo">
-          <span className="logo-icon">🌊</span>
-          <span className="text-gradient">JAL PRAVAH</span>
-        </div>
-        <div className={`nav-links ${menuOpen ? 'nav-open' : ''}`}>
-          <NavLink to="/" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`} end>🗺️ Flood Map</NavLink>
-          <NavLink to="/pmrs" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>📊 PMRS</NavLink>
-          <NavLink to="/predictor" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🤖 AI Predictor</NavLink>
-          <NavLink to="/risk" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>📍 My Risk</NavLink>
-          <NavLink to="/report" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>📝 Report Issue</NavLink>
+    <LocationProvider>
+      <Router>
+        <nav className="navbar">
+          <div className="navbar-logo">
+            <img src="/logo_jalpravah.png" alt="Jal Pravah Logo" style={{ height: '32px', marginRight: '8px', objectFit: 'contain' }} />
+            <span className="text-gradient">JAL PRAVAH</span>
+          </div>
+          <div className={`nav-links ${menuOpen ? 'nav-open' : ''}`}>
+            
+            <GlobalSearchBar />
+
+            <NavLink to="/" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`} end>🗺️ Flood Map</NavLink>
+          <NavLink to="/3d-map" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🏔️ 3D Map</NavLink>
+          <NavLink to="/analysis" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🧠 Deep Analysis</NavLink>
           <NavLink to="/history" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>📈 Historical</NavLink>
-          <NavLink to="/admin" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🔐 Admin</NavLink>
+          <NavLink to="/my-ward" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🏢 My Ward</NavLink>
+          <NavLink to="/bhuvan-setup" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>⚙️ Bhuvan</NavLink>
           
           <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} 
             className="nav-link" style={{ background: 'var(--bg-glass)', border: `1px solid var(--border)`, cursor: 'pointer', borderRadius: '50px' }}>
@@ -63,20 +66,18 @@ export default function App() {
 
       <AlertBanner level={alertLevel} />
 
-      <div className="page-container" style={{ paddingTop: alertLevel !== 'none' ? '0' : '0' }}>
+      <div className={`app-container ${theme}`} style={{ paddingTop: alertLevel !== 'none' ? '0' : '0' }}>
         <Routes>
           <Route path="/" element={<HomePage alertLevel={alertLevel} setAlertLevel={setAlertLevel} />} />
-          <Route path="/pmrs" element={<PMRSDashboard />} />
-          <Route path="/predictor" element={<FloodPredictor />} />
-          <Route path="/risk" element={<CitizenRisk />} />
-          <Route path="/report" element={<CitizenReport />} />
+          <Route path="/3d-map" element={<FloodMap3D />} />
+          <Route path="/analysis" element={<DeepAnalysisMap />} />
           <Route path="/history" element={<HistoricalData />} />
-          <Route path="/admin" element={<AdminPanel />} />
+          <Route path="/my-ward" element={<AdminPanel />} />
+          <Route path="/bhuvan-setup" element={<BhuvanSetup />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
-
-      <VapiSOSButton />
-    </Router>
+      </Router>
+    </LocationProvider>
   );
 }

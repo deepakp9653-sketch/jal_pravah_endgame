@@ -24,33 +24,18 @@ export default function HomePage({ alertLevel, setAlertLevel }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
             <h1 className="section-title">
-              <span className="text-gradient">Jal Pravah</span> — Delhi Flood Intelligence
+              <span className="text-gradient">Jal Pravah</span> — National Flood Intelligence
             </h1>
-            <p className="section-subtitle">Real-time flood prediction and management using Delhi's Flood Control Order 2025 data</p>
-          </div>
-          {/* Alert Level Simulator */}
-          <div className="glass-card" style={{ padding: '0.75rem 1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Simulate Alert:</span>
-            {['none','moderate','high','critical'].map(l => (
-              <button key={l} onClick={() => setAlertLevel(l)}
-                style={{ padding: '0.3rem 0.7rem', borderRadius: '50px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600,
-                  background: alertLevel === l ? 'var(--primary-light)' : 'transparent',
-                  color: alertLevel === l ? 'white' : 'var(--text-secondary)',
-                  border: `1px solid ${alertLevel === l ? 'var(--primary-light)' : 'var(--border)'}` }}>
-                {l}
-              </button>
-            ))}
+            <p className="section-subtitle">Real-time flood prediction and management across India using dynamic Bhuvan & IMD Data</p>
           </div>
         </div>
 
         {/* Stats Row */}
         <div className="hero-stats">
-          {stats.map((s, i) => (
-            <div key={i} className="stat-card">
-              <div className="stat-value">{s.value}</div>
-              <div className="stat-label">{s.label}</div>
-            </div>
-          ))}
+          <div className="stat-card">
+            <div className="stat-value">{hotspots.length}</div>
+            <div className="stat-label">Total Vulnerable Zones Tracked</div>
+          </div>
           <div className="stat-card" style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)' }}>
             <div className="stat-value" style={{ background: 'linear-gradient(135deg,#DC2626,#F97316)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{criticalCount}</div>
             <div className="stat-label">Critical Zones Now</div>
