@@ -14,17 +14,17 @@ const precautionCache = {};
 
 // Real FCO 2025 drainage and terrain data for Delhi districts
 const FCO_DISTRICT_DATA = {
-  'Central': { drainCount: 8, totalDrainLengthKm: 42.5, majorDrains: ['Drain No. 6', 'Tonga Stand Nala'], avgSlope: 0.15, imperviousPct: 92, elevation_m: 215, pumpingStations: 3, underpasses: ['Minto Bridge', 'Azad Market', 'IP Flyover'] },
-  'North': { drainCount: 7, totalDrainLengthKm: 68.3, majorDrains: ['Supplementary Drain', 'Burari Drain'], avgSlope: 0.22, imperviousPct: 65, elevation_m: 218, pumpingStations: 4, underpasses: ['GTK Road Jahangirpuri'] },
-  'North East': { drainCount: 5, totalDrainLengthKm: 38.7, majorDrains: ['Shahdara Drain', 'LF Bund Drain'], avgSlope: 0.12, imperviousPct: 78, elevation_m: 212, pumpingStations: 2, underpasses: ['Wazirabad Road'] },
-  'North West': { drainCount: 9, totalDrainLengthKm: 95.2, majorDrains: ['Najafgarh Drain (upper)', 'Rohtak Road Drain'], avgSlope: 0.18, imperviousPct: 55, elevation_m: 220, pumpingStations: 5, underpasses: ['Mangolpuri Underpass'] },
-  'East': { drainCount: 6, totalDrainLengthKm: 52.1, majorDrains: ['Shahdara Outfall Drain'], avgSlope: 0.14, imperviousPct: 80, elevation_m: 213, pumpingStations: 3, underpasses: ['Laxmi Nagar Metro', 'Old Patparganj'] },
-  'West': { drainCount: 7, totalDrainLengthKm: 61.8, majorDrains: ['Najafgarh Drain (lower)', 'Keshopur Drain'], avgSlope: 0.20, imperviousPct: 62, elevation_m: 217, pumpingStations: 4, underpasses: ['Zakhira Flyover', 'Raja Garden'] },
-  'South': { drainCount: 10, totalDrainLengthKm: 88.4, majorDrains: ['Barapullah Drain', 'MB Road Drain'], avgSlope: 0.25, imperviousPct: 58, elevation_m: 222, pumpingStations: 6, underpasses: ['Pul Prahladpur', 'Chirag Delhi'] },
-  'South East': { drainCount: 6, totalDrainLengthKm: 45.6, majorDrains: ['Trans Yamuna Drain', 'Mathura Road Drain'], avgSlope: 0.13, imperviousPct: 72, elevation_m: 214, pumpingStations: 3, underpasses: ['Badarpur Flyover', 'Sarai Kale Khan'] },
-  'South West': { drainCount: 8, totalDrainLengthKm: 112.7, majorDrains: ['Najafgarh Lake Drain', 'Dhansa Bund Drain'], avgSlope: 0.28, imperviousPct: 42, elevation_m: 225, pumpingStations: 5, underpasses: ['Dhaula Kuan', 'Mahipalpur Flyover'] },
-  'New Delhi': { drainCount: 5, totalDrainLengthKm: 32.9, majorDrains: ['Kushak Nala', 'Sunehri Nala'], avgSlope: 0.16, imperviousPct: 85, elevation_m: 216, pumpingStations: 2, underpasses: ['Minto Bridge', 'Safdarjung'] },
-  'Shahdara': { drainCount: 4, totalDrainLengthKm: 28.4, majorDrains: ['Shahdara Branch Drain'], avgSlope: 0.11, imperviousPct: 82, elevation_m: 211, pumpingStations: 2, underpasses: ['Preet Vihar Metro'] },
+  'Central': { drainCapacityM3s: 185, drainCount: 8, totalDrainLengthKm: 42.5, majorDrains: ['Drain No. 6', 'Tonga Stand Nala'], avgSlope: 0.15, imperviousPct: 92, elevation_m: 215, pumpingStations: 3, underpasses: ['Minto Bridge', 'Azad Market', 'IP Flyover'] },
+  'North': { drainCapacityM3s: 260, drainCount: 7, totalDrainLengthKm: 68.3, majorDrains: ['Supplementary Drain', 'Burari Drain'], avgSlope: 0.22, imperviousPct: 65, elevation_m: 218, pumpingStations: 4, underpasses: ['GTK Road Jahangirpuri'] },
+  'North East': { drainCapacityM3s: 140, drainCount: 5, totalDrainLengthKm: 38.7, majorDrains: ['Shahdara Drain', 'LF Bund Drain'], avgSlope: 0.12, imperviousPct: 78, elevation_m: 212, pumpingStations: 2, underpasses: ['Wazirabad Road'] },
+  'North West': { drainCapacityM3s: 380, drainCount: 9, totalDrainLengthKm: 95.2, majorDrains: ['Najafgarh Drain (upper)', 'Rohtak Road Drain'], avgSlope: 0.18, imperviousPct: 55, elevation_m: 220, pumpingStations: 5, underpasses: ['Mangolpuri Underpass'] },
+  'East': { drainCapacityM3s: 195, drainCount: 6, totalDrainLengthKm: 52.1, majorDrains: ['Shahdara Outfall Drain'], avgSlope: 0.14, imperviousPct: 80, elevation_m: 213, pumpingStations: 3, underpasses: ['Laxmi Nagar Metro', 'Old Patparganj'] },
+  'West': { drainCapacityM3s: 290, drainCount: 7, totalDrainLengthKm: 61.8, majorDrains: ['Najafgarh Drain (lower)', 'Keshopur Drain'], avgSlope: 0.20, imperviousPct: 62, elevation_m: 217, pumpingStations: 4, underpasses: ['Zakhira Flyover', 'Raja Garden'] },
+  'South': { drainCapacityM3s: 410, drainCount: 10, totalDrainLengthKm: 88.4, majorDrains: ['Barapullah Drain', 'MB Road Drain'], avgSlope: 0.25, imperviousPct: 58, elevation_m: 222, pumpingStations: 6, underpasses: ['Pul Prahladpur', 'Chirag Delhi'] },
+  'South East': { drainCapacityM3s: 175, drainCount: 6, totalDrainLengthKm: 45.6, majorDrains: ['Trans Yamuna Drain', 'Mathura Road Drain'], avgSlope: 0.13, imperviousPct: 72, elevation_m: 214, pumpingStations: 3, underpasses: ['Badarpur Flyover', 'Sarai Kale Khan'] },
+  'South West': { drainCapacityM3s: 450, drainCount: 8, totalDrainLengthKm: 112.7, majorDrains: ['Najafgarh Lake Drain', 'Dhansa Bund Drain'], avgSlope: 0.28, imperviousPct: 42, elevation_m: 225, pumpingStations: 5, underpasses: ['Dhaula Kuan', 'Mahipalpur Flyover'] },
+  'New Delhi': { drainCapacityM3s: 150, drainCount: 5, totalDrainLengthKm: 32.9, majorDrains: ['Kushak Nala', 'Sunehri Nala'], avgSlope: 0.16, imperviousPct: 85, elevation_m: 216, pumpingStations: 2, underpasses: ['Minto Bridge', 'Safdarjung'] },
+  'Shahdara': { drainCapacityM3s: 110, drainCount: 4, totalDrainLengthKm: 28.4, majorDrains: ['Shahdara Branch Drain'], avgSlope: 0.11, imperviousPct: 82, elevation_m: 211, pumpingStations: 2, underpasses: ['Preet Vihar Metro'] },
 };
 
 function buildGeminiUrl(keyIndex, modelIndex) {
@@ -105,6 +105,7 @@ Current rainfall: ${rainfall}mm | Humidity: ${humidity}%
 7-day rainfall forecast: ${forecastStr}
 
 --- REAL FCO 2025 DRAINAGE DATA ---
+Max drainage capacity: ${fco.drainCapacityM3s} m³/s
 Drain count: ${fco.drainCount} | Total drain length: ${fco.totalDrainLengthKm}km
 Major drains: ${fco.majorDrains.join(', ')}
 Pumping stations: ${fco.pumpingStations}
