@@ -37,7 +37,7 @@ export default function App() {
       <Router>
         <nav className="navbar">
           <div className="navbar-logo">
-            <img src="/logo_jalpravah.png" alt="Jal Pravah Logo" style={{ height: '32px', marginRight: '8px', objectFit: 'contain' }} />
+            <img src={`${import.meta.env.BASE_URL}logo_jalpravah.png`} alt="Jal Pravah Logo" style={{ height: '32px', marginRight: '8px', objectFit: 'contain' }} />
             <span className="text-gradient">JAL PRAVAH</span>
           </div>
           <div className={`nav-links ${menuOpen ? 'nav-open' : ''}`}>
