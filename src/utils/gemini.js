@@ -1,7 +1,7 @@
 // Gemini API utility for Jal Pravah — Dual-Key Failover System
 // Primary key provided by user, fallback key as backup
 const GEMINI_KEYS = [
-  'AIzaSyAvJEP4gsf2KTwV22YoGBL3bujfBTecZqw',  // Primary (latest)
+  'AIzaSyBZL_vwqsGwXm4Umm9yzc5ldatcUkU0wmA',  // Primary (Provided by User)
   'AIzaSyBtGmphiCfAmomS1B0EYKJArmQMKtzxE1o',  // Fallback 1
   'AIzaSyCSMZTcXyOuGcNK5i11mw4-6HxMJqu5LRE',  // Fallback 2
 ];

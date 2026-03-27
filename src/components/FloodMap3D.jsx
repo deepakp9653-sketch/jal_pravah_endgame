@@ -269,65 +269,59 @@ export default function FloodMap3D() {
 
   }, [filtered]);
 
-  // Flood Simulation Logic — Multi-zone water physics
+import { DELHI_DISTRICTS_POLYGONS } from '../data/delhiDistrictPolygons';
+
+  // Toggle marker visibility when simulating
+  useEffect(() => {
+    if (entitiesRef.current) {
+      entitiesRef.current.forEach(entity => {
+        if (entity.billboard || entity.label) {
+          entity.show = !simulationActive;
+        }
+      });
+    }
+  }, [simulationActive]);
+
+  // Flood Simulation Logic — Ward-wise Intelligence
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
 
     if (simulationActive) {
-      // Multiple flood zones based on Delhi's actual low-lying areas
-      const FLOOD_ZONES = [
-        { // Yamuna Floodplain (primary)
-          name: 'Yamuna Floodplain',
-          coords: [77.220, 28.710, 77.240, 28.710, 77.260, 28.650, 77.275, 28.600,
-                   77.285, 28.560, 77.270, 28.530, 77.250, 28.530, 77.240, 28.570,
-                   77.235, 28.610, 77.220, 28.650, 77.215, 28.690, 77.220, 28.710],
-          baseHeight: 198,
-          sensitivity: 0.02, // Meters rise per mm of rainfall
-        },
-        { // ITO-Ring Road Basin
-          name: 'ITO Basin',
-          coords: [77.235, 28.640, 77.250, 28.640, 77.255, 28.625, 77.250, 28.610,
-                   77.235, 28.615, 77.230, 28.630, 77.235, 28.640],
-          baseHeight: 202,
-          sensitivity: 0.012,
-        },
-        { // Najafgarh Drain overflow
-          name: 'Najafgarh Drain',
-          coords: [77.010, 28.620, 77.040, 28.630, 77.060, 28.610, 77.070, 28.590,
-                   77.050, 28.570, 77.020, 28.580, 77.010, 28.600, 77.010, 28.620],
-          baseHeight: 210,
-          sensitivity: 0.008,
-        }
-      ];
-
       if (!waterEntityRef.current || waterEntityRef.current.length === 0) {
         waterEntityRef.current = [];
         
-        FLOOD_ZONES.forEach(zone => {
-          const waterAlpha = Math.min(0.75, 0.35 + (rainfallMM / 500) * 0.4);
+        DELHI_DISTRICTS_POLYGONS.forEach(zone => {
           const entity = viewer.entities.add({
             name: zone.name,
             polygon: {
               hierarchy: Cesium.Cartesian3.fromDegreesArray(zone.coords),
               height: zone.baseHeight,
               extrudedHeight: new Cesium.CallbackProperty(() => {
-                const rise = (window._currentRainfallMM || 0) * zone.sensitivity;
-                return zone.baseHeight + rise;
+                const rain = (window._currentRainfallMM || 0);
+                // Math: Every 50mm of rain adds roughly 1m of visible height 
+                // scaled slightly by area for visual effect
+                return zone.baseHeight + (rain * 0.02 * zone.areaScale);
               }, false),
               material: new Cesium.ColorMaterialProperty(
                 new Cesium.CallbackProperty(() => {
                   const rain = window._currentRainfallMM || 0;
                   
+                  // AI Predictor Load Calculation
+                  // Load = (Rainfall * Scale Factor) / FCO Capacity
+                  const loadFactor = (rain * 15 * zone.areaScale) / zone.fcoCapacity;
+                  
                   // AI Predictor Intensity Colors
-                  let colorHex = '#10B981'; // Green (Safe / Minor logging)
-                  if (rain >= 100) {
-                    colorHex = '#EF4444'; // Red (Critical Depth)
-                  } else if (rain >= 30) {
-                    colorHex = '#F59E0B'; // Yellow (Moderate Risk)
+                  let colorHex = '#10B981'; // Green (Capacity > Load - Safe)
+                  if (loadFactor >= 2.0) {
+                     // Red (Critical - Load drastically exceeds capacity)
+                    colorHex = '#EF4444'; 
+                  } else if (loadFactor >= 0.8) {
+                     // Yellow (Moderate Risk - Capacity stretched)
+                    colorHex = '#F59E0B'; 
                   }
                   
-                  const alpha = Math.min(0.8, 0.4 + (rain / 250) * 0.4);
+                  const alpha = Math.min(0.75, 0.4 + (loadFactor * 0.15));
                   return Cesium.Color.fromCssColorString(colorHex).withAlpha(alpha);
                 }, false)
               ),
@@ -338,12 +332,12 @@ export default function FloodMap3D() {
           waterEntityRef.current.push(entity);
         });
 
-        // Fly to simulation view
+        // Fly to simulation view over entire Delhi
         viewer.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(77.240, 28.620, 8000),
+          destination: Cesium.Cartesian3.fromDegrees(77.100, 28.520, 35000),
           orientation: {
-            heading: Cesium.Math.toRadians(10),
-            pitch: Cesium.Math.toRadians(-35),
+            heading: Cesium.Math.toRadians(15),
+            pitch: Cesium.Math.toRadians(-55),
             roll: 0
           },
           duration: 2
@@ -354,10 +348,10 @@ export default function FloodMap3D() {
       window._currentRainfallMM = rainfallMM;
 
     } else {
-      // Cleanup all water entities
+      // Remove flood polygons
       if (waterEntityRef.current && waterEntityRef.current.length > 0) {
-        waterEntityRef.current.forEach(e => {
-          try { viewer.entities.remove(e); } catch (_) {}
+        waterEntityRef.current.forEach(entity => {
+          viewer.entities.remove(entity);
         });
         waterEntityRef.current = [];
       }

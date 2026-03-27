@@ -82,9 +82,7 @@ export default function App() {
         <button className="hamburger" onClick={() => setMenuOpen(!menuOpen)}>☰</button>
       </nav>
 
-      <AlertBanner level={alertLevel} />
-
-      <div className={`app-container ${theme}`} style={{ paddingTop: alertLevel !== 'none' ? '0' : '0' }}>
+      <div className={`app-container ${theme}`} style={{ paddingTop: '0' }}>
         <Routes>
           <Route path="/" element={<HomePage alertLevel={alertLevel} setAlertLevel={setAlertLevel} />} />
           <Route path="/3d-map" element={<FloodMap3D />} />

@@ -78,15 +78,15 @@ h1, h2, h3, h4, h5 { font-family: 'Inter', sans-serif; font-weight: 700; line-he
   position: fixed;
   top: 0; left: 0; right: 0;
   z-index: 1000;
-  background: linear-gradient(90deg, #0F172A, #1E3A8A, #1D4ED8);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  color: white;
+  background: #E0F2FE; /* Lightest blue shade */
+  border-bottom: 1px solid rgba(59,130,246,0.2);
+  color: var(--text-primary);
   padding: 0 2rem;
   height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 15px rgba(59,130,246,0.1);
 }
 .navbar-logo {
   display: flex;
@@ -95,12 +95,14 @@ h1, h2, h3, h4, h5 { font-family: 'Inter', sans-serif; font-weight: 700; line-he
   font-family: 'Inter', sans-serif;
   font-weight: 800;
   font-size: 1.4rem;
-  color: white;
+  color: var(--primary-dark);
 }
 .navbar-logo .text-gradient {
-  background: none;
-  -webkit-text-fill-color: white;
-  color: white;
+  background: linear-gradient(135deg, #1E40AF, #3B82F6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 .logo-icon { font-size: 1.8rem; animation: pulse-water 3s ease-in-out infinite; }
 @keyframes pulse-water {
@@ -112,8 +114,8 @@ h1, h2, h3, h4, h5 { font-family: 'Inter', sans-serif; font-weight: 700; line-he
   padding: 0.5rem 1rem;
   border-radius: var(--radius-sm);
   font-size: 0.88rem;
-  font-weight: 500;
-  color: rgba(255,255,255,0.8);
+  font-weight: 600;
+  color: var(--text-secondary);
   transition: all 0.2s ease;
   white-space: nowrap;
   display: flex;
@@ -127,9 +129,9 @@ h1, h2, h3, h4, h5 { font-family: 'Inter', sans-serif; font-weight: 700; line-he
   object-fit: cover;
 }
 .nav-link:hover, .nav-link.active {
-  background: rgba(255,255,255,0.15);
-  color: white;
-  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(59,130,246,0.1);
+  color: var(--primary-dark);
+  border: 1px solid rgba(59,130,246,0.3);
 }
 .nav-emergency-btn {
   background: linear-gradient(135deg, var(--alert-red), #991B1B);
