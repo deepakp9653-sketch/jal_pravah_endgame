@@ -37,7 +37,7 @@ export default function App() {
       <Router>
         <nav className="navbar">
           <div className="navbar-logo">
-            <img src={`${import.meta.env.BASE_URL}logo_jalpravah.png`} alt="Jal Pravah Logo" style={{ height: '32px', marginRight: '8px', objectFit: 'contain' }} />
+            <img src={`${import.meta.env.BASE_URL}logo_jalpravah.png`} alt="Jal Pravah Logo" style={{ height: '36px', width: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary-light)', background: '#fff' }} />
             <span className="text-gradient">JAL PRAVAH</span>
           </div>
           <div className={`nav-links ${menuOpen ? 'nav-open' : ''}`}>
@@ -48,7 +48,7 @@ export default function App() {
           <NavLink to="/3d-map" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🏔️ 3D Map</NavLink>
           <NavLink to="/analysis" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🧠 Deep Analysis</NavLink>
           <NavLink to="/history" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>📈 Historical</NavLink>
-          <NavLink to="/my-ward" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🏢 My Ward</NavLink>
+          <NavLink to="/my-ward" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🏛️ My Ward (Delhi)</NavLink>
           <NavLink to="/bhuvan-setup" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>⚙️ Bhuvan</NavLink>
           
           <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} 

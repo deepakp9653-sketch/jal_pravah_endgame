@@ -28,7 +28,7 @@ export default function IntroPage({ onStart }) {
       
       <div className="intro-content">
         <div className="intro-logo-container">
-          <img src={`${import.meta.env.BASE_URL}logo_jalpravah.png`} alt="Jal Pravah Logo" style={{ height: '80px', objectFit: 'contain' }} className="intro-icon-img" />
+          <img src={`${import.meta.env.BASE_URL}logo_jalpravah.png`} alt="Jal Pravah Logo" style={{ height: '90px', width: '90px', borderRadius: '50%', objectFit: 'cover', border: '3px solid rgba(59,130,246,0.6)', background: '#fff', boxShadow: '0 0 25px rgba(59,130,246,0.3)' }} />
         </div>
         
         <h1 className="intro-title">JAL PRAVAH COMMAND CENTER</h1>

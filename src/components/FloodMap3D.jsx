@@ -269,68 +269,94 @@ export default function FloodMap3D() {
 
   }, [filtered]);
 
-  // Flood Simulation Logic
+  // Flood Simulation Logic — Multi-zone water physics
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
 
     if (simulationActive) {
-      // Yamuna River rough bounding polygon in Delhi
-      const YAMUNA_POLYGON = [
-        77.225, 28.700, // Wazirabad Barrage West
-        77.235, 28.700, // Wazirabad East
-        77.255, 28.640, // ISBT
-        77.265, 28.640,
-        77.280, 28.570, // Mayur Vihar East
-        77.265, 28.570, // Mayur Vihar West
-        77.245, 28.600, // ITO West
-        77.225, 28.700  // Close polygon
+      // Multiple flood zones based on Delhi's actual low-lying areas
+      const FLOOD_ZONES = [
+        { // Yamuna Floodplain (primary)
+          name: 'Yamuna Floodplain',
+          coords: [77.220, 28.710, 77.240, 28.710, 77.260, 28.650, 77.275, 28.600,
+                   77.285, 28.560, 77.270, 28.530, 77.250, 28.530, 77.240, 28.570,
+                   77.235, 28.610, 77.220, 28.650, 77.215, 28.690, 77.220, 28.710],
+          baseHeight: 198,
+          sensitivity: 0.02, // Meters rise per mm of rainfall
+        },
+        { // ITO-Ring Road Basin
+          name: 'ITO Basin',
+          coords: [77.235, 28.640, 77.250, 28.640, 77.255, 28.625, 77.250, 28.610,
+                   77.235, 28.615, 77.230, 28.630, 77.235, 28.640],
+          baseHeight: 202,
+          sensitivity: 0.012,
+        },
+        { // Najafgarh Drain overflow
+          name: 'Najafgarh Drain',
+          coords: [77.010, 28.620, 77.040, 28.630, 77.060, 28.610, 77.070, 28.590,
+                   77.050, 28.570, 77.020, 28.580, 77.010, 28.600, 77.010, 28.620],
+          baseHeight: 210,
+          sensitivity: 0.008,
+        }
       ];
 
-      if (!waterEntityRef.current) {
-        // Create water entity on first activation
-        waterEntityRef.current = viewer.entities.add({
-          name: 'Yamuna Flood Simulation',
-          polygon: {
-            hierarchy: Cesium.Cartesian3.fromDegreesArray(YAMUNA_POLYGON),
-            height: 195, // Base height below terrain to hide edges
-            extrudedHeight: new Cesium.CallbackProperty(() => {
-              // Read current level from global variable tracked from rainfall
-              return window._currentWaterLevel || 202;
-            }, false),
-            material: Cesium.Color.fromCssColorString('#3b82f6').withAlpha(0.65),
-            perPositionHeight: false
-          }
+      if (!waterEntityRef.current || waterEntityRef.current.length === 0) {
+        waterEntityRef.current = [];
+        
+        FLOOD_ZONES.forEach(zone => {
+          const waterAlpha = Math.min(0.75, 0.35 + (rainfallMM / 500) * 0.4);
+          const entity = viewer.entities.add({
+            name: zone.name,
+            polygon: {
+              hierarchy: Cesium.Cartesian3.fromDegreesArray(zone.coords),
+              height: zone.baseHeight,
+              extrudedHeight: new Cesium.CallbackProperty(() => {
+                const rise = (window._currentRainfallMM || 0) * zone.sensitivity;
+                return zone.baseHeight + rise;
+              }, false),
+              material: new Cesium.ColorMaterialProperty(
+                new Cesium.CallbackProperty(() => {
+                  const rain = window._currentRainfallMM || 0;
+                  const alpha = Math.min(0.8, 0.3 + (rain / 400) * 0.5);
+                  return Cesium.Color.fromCssColorString('#1d4ed8').withAlpha(alpha);
+                }, false)
+              ),
+              outline: true,
+              outlineColor: Cesium.Color.fromCssColorString('#60a5fa').withAlpha(0.6),
+            }
+          });
+          waterEntityRef.current.push(entity);
         });
 
-        // Initial fly to the simulation area (high angle)
+        // Fly to simulation view
         viewer.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(77.245, 28.630, 4000),
+          destination: Cesium.Cartesian3.fromDegrees(77.240, 28.620, 8000),
           orientation: {
-            heading: Cesium.Math.toRadians(15),
-            pitch: Cesium.Math.toRadians(-30),
+            heading: Cesium.Math.toRadians(10),
+            pitch: Cesium.Math.toRadians(-35),
             roll: 0
           },
           duration: 2
         });
       }
 
-      // Calculate water level: base 202m + (rainfall(mm) * 0.015)
-      window._currentWaterLevel = 202 + (rainfallMM * 0.015);
+      // Update global rainfall for CallbackProperty
+      window._currentRainfallMM = rainfallMM;
 
     } else {
-      // Cleanup
-      if (waterEntityRef.current) {
-        viewer.entities.remove(waterEntityRef.current);
-        waterEntityRef.current = null;
+      // Cleanup all water entities
+      if (waterEntityRef.current && waterEntityRef.current.length > 0) {
+        waterEntityRef.current.forEach(e => {
+          try { viewer.entities.remove(e); } catch (_) {}
+        });
+        waterEntityRef.current = [];
       }
+      window._currentRainfallMM = 0;
       setRainfallMM(0);
     }
 
-    return () => {
-      // We purposefully don't remove the entity here so that rerenders 
-      // of rainfallMM don't recreate the entity (unless simulationActive goes false).
-    };
+    return () => {};
   }, [simulationActive, rainfallMM]);
 
   // Camera actions

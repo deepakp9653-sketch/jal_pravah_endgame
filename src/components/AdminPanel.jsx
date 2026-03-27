@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { drains } from '../data/drains';
-import { districts } from '../data/hotspots';
 import { supabase } from '../utils/supabase';
 import { ACTIVE_DISTRICT_DATA, predictFlood } from '../utils/floodML';
 import { generateGeminiResponse } from '../utils/gemini';
 import { calculateUniversalPMRS } from '../utils/universalPMRS';
 import { bhuvanExtractTerrainData } from '../utils/bhuvan-api';
+import { mcdWards, ZONE_TO_FCO, ZONE_COORDS, MCD_ZONES } from '../data/mcdWards';
 
 // 🔗 n8n Webhook URL
 const N8N_WEBHOOK_URL = 'https://deepak68227.app.n8n.cloud/webhook/flood-alert';
@@ -50,7 +50,8 @@ const DAYS = ['Today','Day 2','Day 3','Day 4','Day 5','Day 6','Day 7'];
 
 export default function AdminPanel() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const [ward, setWard] = useState('Central');
+  const [ward, setWard] = useState('');
+  const [wardSearch, setWardSearch] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loadingLogin, setLoadingLogin] = useState(false);
@@ -95,8 +96,12 @@ export default function AdminPanel() {
       loadCitizenFeeds(ward);
       
       // ---- LIVE WARD INTELLIGENCE ----
-      const d = ACTIVE_DISTRICT_DATA[ward] || ACTIVE_DISTRICT_DATA['Central'];
-      const [wLat, wLon] = WARD_COORDS[ward] || [28.6139, 77.2090];
+      // Find the selected MCD ward and map to its zone's FCO district
+      const mcdWard = mcdWards.find(w => w.name === ward);
+      const zone = mcdWard ? mcdWard.zone : 'Central Zone';
+      const fcoDistrict = ZONE_TO_FCO[zone] || 'Central';
+      const d = ACTIVE_DISTRICT_DATA[fcoDistrict] || ACTIVE_DISTRICT_DATA['Central'];
+      const [wLat, wLon] = ZONE_COORDS[zone] || [28.6139, 77.2090];
       
       let liveTerrain = { slope: d.avgSlope || 2.5, elevation: 210 };
       try {
@@ -153,35 +158,56 @@ export default function AdminPanel() {
     }
   };
 
-  // ---- LOGIN SCREEN ----
-  const allWards = [...districts.map(d => d.name), 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 'Pune', 'Hyderabad'].sort();
+  const filteredMCDWards = mcdWards.filter(w =>
+    w.name.toLowerCase().includes(wardSearch.toLowerCase()) ||
+    w.zone.toLowerCase().includes(wardSearch.toLowerCase()) ||
+    String(w.wardNo).includes(wardSearch)
+  );
 
   if (!loggedIn) return (
     <div className="login-overlay">
       <div className="login-card">
-        <div className="login-icon">🏢</div>
-        <h2 className="login-title">My Ward Dashboard</h2>
-        <p className="login-subtitle">Jal Pravah Government Coordination Portal</p>
+        <div className="login-icon">🏛️</div>
+        <h2 className="login-title">My Ward (Delhi)</h2>
+        <p className="login-subtitle">MCD — 250 Ward Government Portal</p>
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <input className="form-input" list="ward-list" placeholder="Search for City or Ward..." value={ward} onChange={e => setWard(e.target.value)} style={{ padding: '0.8rem', fontSize: '1rem' }} />
-          <datalist id="ward-list">
-            {allWards.map(w => <option key={w} value={w}>{w} {districts.find(d=>d.name===w) ? 'Ward' : 'Municipal Corp'}</option>)}
-          </datalist>
+          <input className="form-input" placeholder="🔍 Search ward by name, number, or zone..."
+            value={wardSearch} onChange={e => { setWardSearch(e.target.value); setWard(''); }}
+            style={{ padding: '0.8rem', fontSize: '0.95rem' }} />
+          {wardSearch && filteredMCDWards.length > 0 && !ward && (
+            <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--bg-glass)' }}>
+              {filteredMCDWards.slice(0, 20).map(w => (
+                <div key={w.wardNo}
+                  onClick={() => { setWard(w.name); setWardSearch(`Ward ${w.wardNo}: ${w.name}`); }}
+                  style={{ padding: '0.5rem 0.8rem', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.15)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <span><strong>#{w.wardNo}</strong> {w.name}</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{w.zone}</span>
+                </div>
+              ))}
+              {filteredMCDWards.length > 20 && <div style={{ padding: '0.4rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>...{filteredMCDWards.length - 20} more results</div>}
+            </div>
+          )}
+          {ward && <div style={{ padding: '0.5rem 0.8rem', background: 'rgba(59,130,246,0.1)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--primary-light)' }}>✅ Selected: <strong>{ward}</strong></div>}
           <input type="password" className="form-input" placeholder="Enter secure passcode"
             value={password} onChange={e => setPassword(e.target.value)} style={{ textAlign: 'center', letterSpacing: '0.2em' }} />
           {error && <p style={{ color: '#EF4444', fontSize: '0.85rem', margin: 0 }}>{error}</p>}
-          <button type="submit" className="btn btn-primary btn-full" disabled={loadingLogin} style={{ padding: '0.9rem', borderRadius: '12px' }}>
+          <button type="submit" className="btn btn-primary btn-full" disabled={loadingLogin || !ward} style={{ padding: '0.9rem', borderRadius: '12px' }}>
             {loadingLogin ? 'Verifying...' : '🔓 Login'}
           </button>
         </form>
-        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1.5rem' }}>Authorised personnel only.</p>
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1.5rem' }}>Authorised MCD personnel only. 250 wards available.</p>
       </div>
     </div>
   );
 
   // Helpers
   const maxProb = Math.max(...(wardIntel?.probs7day || [1]));
-  const coords = WARD_COORDS[ward] || [28.6139, 77.2090];
+  const mcdWardObj = mcdWards.find(w => w.name === ward);
+  const activeZone = mcdWardObj ? mcdWardObj.zone : 'Central Zone';
+  const coords = ZONE_COORDS[activeZone] || [28.6139, 77.2090];
   const mapUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}`;
 
   return (
