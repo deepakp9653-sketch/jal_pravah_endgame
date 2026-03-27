@@ -1,13 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, WMSTileLayer, CircleMarker, Popup, LayersControl, ZoomControl, Polyline, GeoJSON, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, Marker, CircleMarker, Popup, LayersControl, ZoomControl, Polyline, GeoJSON, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { hotspots as baseHotspots, riskColors, districts, safeZones } from '../data/hotspots';
-import { massiveHotspots } from '../data/massiveHotspots';
 import { useLocationContext } from '../context/LocationContext';
 import { calculateUniversalPMRS } from '../utils/universalPMRS';
 import { bhuvanGetLULCStats, bhuvanGetRoutingData, bhuvanGetGeoID, bhuvanExtractTerrainData } from '../utils/bhuvan-api';
 
-const hotspots = [...baseHotspots, ...massiveHotspots];
+import L from 'leaflet';
+
+const hotspots = [...baseHotspots]; // Removed massiveHotspots to permanently fix extreme clutter
+
+// Custom Polygon-Arrow SVG Icon generator
+const getRiskPolygonIcon = (color, isSelected) => {
+  const scale = isSelected ? 1.4 : 1.0;
+  return L.divIcon({
+    html: `<svg width="${24 * scale}" height="${24 * scale}" viewBox="0 0 24 24" fill="${color}" stroke="#fff" stroke-width="1.5" style="transform: translateY(-50%) drop-shadow(0px 3px 4px rgba(0,0,0,0.4));">
+             <path d="M12 2L22 20H2Z" />
+           </svg>`,
+    className: 'custom-polygon-arrow',
+    iconSize: [24 * scale, 24 * scale],
+    iconAnchor: [12 * scale, 12 * scale]
+  });
+};
+
+const myLocationIcon = L.divIcon({
+  html: `<div style="font-size: 24px; color: #3b82f6; text-shadow: 0 2px 4px rgba(0,0,0,0.5); transform: rotate(-45deg);">➤</div>`,
+  className: 'custom-loc-arrow',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12]
+});
 
 // India sovereign boundary (simplified polygon — Survey of India specification)
 // Includes full Jammu & Kashmir, Aksai Chin, Arunachal Pradesh
@@ -153,6 +174,7 @@ export default function FloodMap({ filterRisk, filterType }) {
   const [mapCenter, setMapCenter] = useState([28.6139, 77.2090]); // Default to Delhi as requested
   const [mapZoom, setMapZoom] = useState(11);
   const [weatherCache, setWeatherCache] = useState({}); // Smart Batch cache
+  const [userLocation, setUserLocation] = useState(null); // Track actual location
   
   const { globalCityData, globalOsmDrainage, isGlobalSearching } = useLocationContext();
 
@@ -167,7 +189,9 @@ export default function FloodMap({ filterRisk, filterType }) {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setMapCenter([position.coords.latitude, position.coords.longitude]);
+          const loc = [position.coords.latitude, position.coords.longitude];
+          setMapCenter(loc);
+          setUserLocation(loc);
           setMapZoom(12);
         },
         (err) => {
@@ -296,22 +320,22 @@ export default function FloodMap({ filterRisk, filterType }) {
             </LayersControl.BaseLayer>
 
           </LayersControl>
+          
+          {userLocation && (
+            <Marker position={userLocation} icon={myLocationIcon}>
+              <Popup>Your Location</Popup>
+            </Marker>
+          )}
+
           {filtered.map(h => {
              const isSelected = selectedHotspot?.id === h.id;
              const liveData = weatherCache[h.id];
              const currentRiskColor = riskColors[liveData ? liveData.risk : h.risk];
              return (
-            <CircleMarker
+            <Marker
               key={h.id}
-              center={[h.lat, h.lng]}
-              radius={isSelected ? 6 : 2.5}
-              pathOptions={{
-                fillColor: currentRiskColor,
-                color: currentRiskColor,
-                weight: isSelected ? 2 : 0,
-                opacity: 0.8,
-                fillOpacity: 0.45,
-              }}
+              position={[h.lat, h.lng]}
+              icon={getRiskPolygonIcon(currentRiskColor, isSelected)}
               eventHandlers={{ click: () => setSelectedHotspot(h) }}
             >
               <Popup>
@@ -332,7 +356,7 @@ export default function FloodMap({ filterRisk, filterType }) {
                 <div className="popup-desc">{h.description}</div>
                 <div style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: '#64748B' }}>📍 {h.district} District</div>
               </Popup>
-            </CircleMarker>
+            </Marker>
             );
           })}
           

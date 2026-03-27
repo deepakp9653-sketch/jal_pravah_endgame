@@ -360,8 +360,8 @@ Format with clear headers, bullet points, and bold key metrics.`;
                 </div>
               ) : loadingAdvisor ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '3rem' }}>
-                  <div style={{ width: '40px', height: '40px', border: '4px solid rgba(59, 130, 246, 0.2)', borderTopColor: '#3B82F6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                  <p style={{ color: 'var(--text-muted)' }}>Cross-referencing international hydrology strategies for {ward}...</p>
+                  <div style={{ fontSize: '4rem', animation: 'spin 2s linear infinite', display: 'inline-block', color: 'var(--primary-light)' }}>⚙️</div>
+                  <p style={{ color: 'var(--text-muted)', fontWeight: 600, marginTop: '1rem' }}>Extracting international hydrology blueprints for {ward}...</p>
                 </div>
               ) : (
                 <div>
@@ -414,25 +414,7 @@ Format with clear headers, bullet points, and bold key metrics.`;
               </div>
             </div>
 
-            {/* Bulk Alert */}
-            <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>📢 Broadcast Emergency Alert</div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Send SMS to ALL registered officers in {ward}</div>
-              </div>
-              <button className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #DC2626, #EF4444)' }} onClick={async () => {
-                const ok = await triggerN8nAlert({
-                  type: 'broadcast',
-                  ward,
-                  floodRisk: wardIntel?.prob,
-                  pmrs: wardIntel?.pmrs,
-                  officers: officers.map(o => ({ name: o.name, phone: o.phone_number, role: o.role })),
-                });
-                alert(ok ? `✅ n8n Broadcast triggered! SMS/WhatsApp being sent to ${officers.length} officers.` : '⚠️ n8n webhook unreachable. Is n8n running?');
-              }}>
-                🚨 Broadcast to All ({officers.length})
-              </button>
-            </div>
+            {/* Bulk Alert section removed to comply with cleanup request (Non-functional natively) */}
             
             {/* Officers Table */}
             <div className="glass-card" style={{ padding: 0, overflow: 'auto' }}>
@@ -445,19 +427,7 @@ Format with clear headers, bullet points, and bold key metrics.`;
                       <td style={{ color: 'var(--text-secondary)' }}>{o.role || '—'}</td>
                       <td>{o.phone_number}</td>
                       <td>
-                        <button className="btn btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderColor: '#3B82F6', color: '#3B82F6', marginRight: '0.4rem' }}
-                          onClick={async () => {
-                            const ok = await triggerN8nAlert({
-                              type: 'individual_alert',
-                              ward,
-                              floodRisk: wardIntel?.prob,
-                              pmrs: wardIntel?.pmrs,
-                              officer: { name: o.name, phone: o.phone_number, role: o.role },
-                            });
-                            alert(ok ? `✅ Alert dispatched to ${o.name} via n8n → Twilio` : '⚠️ n8n webhook unreachable.');
-                          }}>
-                          📲 SMS Alert
-                        </button>
+
                         <button className="btn btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderColor: '#EF4444', color: '#EF4444' }}
                           onClick={async () => { await supabase.from('officers').delete().eq('id', o.id); loadOfficers(ward); }}>
                           Remove

@@ -191,17 +191,26 @@ export default function DeepAnalysisMap() {
         <MapUpdater center={mapCenter} zoom={mapZoom} />
         <MapInteractionHandler onLocationSelect={handleMapClick} />
         
-        <LayersControl position="topleft">
-          <LayersControl.BaseLayer checked name="☀️ Light Topo View">
+        <LayersControl position="topright">
+          <LayersControl.BaseLayer checked name="🇮🇳 Bhuvan Map (ISRO)">
+            <WMSTileLayer
+              url="https://bhuvan-vec1.nrsc.gov.in/bhuvan/gwc/service/wms/"
+              layers="india3"
+              format="image/jpeg"
+              transparent={false}
+              attribution="Data © ISRO Bhuvan"
+            />
+          </LayersControl.BaseLayer>
+          <LayersControl.BaseLayer name="🌍 Satellite Imagery (Fallback)">
+            <TileLayer
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              attribution='Tiles &copy; Esri'
+            />
+          </LayersControl.BaseLayer>
+          <LayersControl.BaseLayer name="☀️ Light Topo View">
             <TileLayer
               url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
               attribution='&copy; CARTO'
-            />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="🌍 Satellite Imagery">
-            <TileLayer
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
             />
           </LayersControl.BaseLayer>
           <LayersControl.BaseLayer name="🌙 Dark Satellite View">
@@ -264,6 +273,13 @@ export default function DeepAnalysisMap() {
           overflowY: 'auto'
         }}
       >
+        {isGlobalSearching && (
+           <div style={{ padding: '3rem 2rem', textAlign: 'center' }}>
+             <div style={{ color: 'var(--primary-light)', fontSize: '0.85rem' }}>
+               <span style={{ fontSize: '1.2rem', animation: 'spin 2s linear infinite', display: 'inline-block' }}>⚙️</span> Syncing Map to City...
+             </div>
+           </div>
+        )}
         {isAnalyzing ? (
           <div style={{ padding: '3rem 2rem', textAlign: 'center' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '1rem', animation: 'spin 2s linear infinite' }}>⚙️</div>
