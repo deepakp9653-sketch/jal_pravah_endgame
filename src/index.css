@@ -109,6 +109,15 @@ h1, h2, h3, h4, h5 { font-family: 'Inter', sans-serif; font-weight: 700; line-he
   color: var(--text-secondary);
   transition: all 0.2s ease;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: cover;
 }
 .nav-link:hover, .nav-link.active {
   background: var(--bg-glass);

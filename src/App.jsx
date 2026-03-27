@@ -44,12 +44,24 @@ export default function App() {
             
             <GlobalSearchBar />
 
-            <NavLink to="/" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`} end>🗺️ Flood Map</NavLink>
-          <NavLink to="/3d-map" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🏔️ 3D Map</NavLink>
-          <NavLink to="/analysis" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🧠 Deep Analysis</NavLink>
-          <NavLink to="/history" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>📈 Historical</NavLink>
-          <NavLink to="/my-ward" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>🏛️ My Ward (Delhi)</NavLink>
-          <NavLink to="/bhuvan-setup" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>⚙️ Bhuvan</NavLink>
+            <NavLink to="/" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`} end>
+            <img src={`${import.meta.env.BASE_URL}map.jpeg`} alt="" className="nav-icon" /> Flood Map
+          </NavLink>
+          <NavLink to="/3d-map" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>
+            <img src={`${import.meta.env.BASE_URL}magnifying_glass.jpeg`} alt="" className="nav-icon" /> 3D Map
+          </NavLink>
+          <NavLink to="/analysis" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>
+            <img src={`${import.meta.env.BASE_URL}deep_analysis.jpeg`} alt="" className="nav-icon" /> Deep Analysis
+          </NavLink>
+          <NavLink to="/history" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>
+            <img src={`${import.meta.env.BASE_URL}drainage.jpeg`} alt="" className="nav-icon" /> Historical
+          </NavLink>
+          <NavLink to="/my-ward" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>
+            <img src={`${import.meta.env.BASE_URL}ward.jpeg`} alt="" className="nav-icon" /> My Ward (Delhi)
+          </NavLink>
+          <NavLink to="/bhuvan-setup" className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`}>
+            <img src={`${import.meta.env.BASE_URL}settings.jpeg`} alt="" className="nav-icon" /> Bhuvan
+          </NavLink>
           
           <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} 
             className="nav-link" style={{ background: 'var(--bg-glass)', border: `1px solid var(--border)`, cursor: 'pointer', borderRadius: '50px' }}>
