@@ -8,6 +8,7 @@ import AdminPanel from './components/AdminPanel';
 import HistoricalData from './components/HistoricalData';
 import FloodMap3D from './components/FloodMap3D';
 import AlertBanner from './components/AlertBanner';
+import GlobalLogin from './components/GlobalLogin';
 import BhuvanSetup from './components/BhuvanSetup';
 import GlobalSearchBar from './components/GlobalSearchBar';
 import { LocationProvider } from './context/LocationContext';
@@ -15,6 +16,7 @@ import { refreshMLParams } from './utils/floodML';
 
 export default function App() {
   const [showApp, setShowApp] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [alertLevel, setAlertLevel] = useState('moderate');
   const [theme, setTheme] = useState('light');
@@ -30,6 +32,10 @@ export default function App() {
 
   if (!showApp) {
     return <IntroPage onStart={() => setShowApp(true)} />;
+  }
+
+  if (!isAuthorized) {
+    return <GlobalLogin onLoginSuccess={() => setIsAuthorized(true)} />;
   }
 
   return (

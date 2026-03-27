@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, LayersControl, ZoomControl, Polyline, GeoJSON, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, CircleMarker, Popup, LayersControl, ZoomControl, Polyline, GeoJSON, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { hotspots as baseHotspots, riskColors, districts, safeZones } from '../data/hotspots';
 import { massiveHotspots } from '../data/massiveHotspots';
@@ -259,17 +259,19 @@ export default function FloodMap({ filterRisk, filterType }) {
           <ZoomControl position="topright" />
           <GeoJSON data={INDIA_BOUNDARY} style={() => indiaBoundaryStyle} />
           <LayersControl position="topright">
-            <LayersControl.BaseLayer checked name="🗺️ Esri Street Map">
+            <LayersControl.BaseLayer checked name="🇮🇳 Bhuvan Vector (ISRO)">
+              <WMSTileLayer
+                url="https://bhuvan-vec1.nrsc.gov.in/bhuvan/gwc/service/wms/"
+                layers="india3"
+                format="image/jpeg"
+                transparent={false}
+                attribution='&copy; ISRO Bhuvan'
+              />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer name="🗺️ Esri Street Map">
               <TileLayer
                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
                 attribution='&copy; Esri, HERE, Garmin'
-              />
-            </LayersControl.BaseLayer>
-            <LayersControl.BaseLayer name="🇮🇳 MapmyIndia (Mappls)">
-              <TileLayer
-                url="https://apis.mappls.com/advancedmaps/v1/dnkqcqsyjniuauawfukamrqcgowkqiadisov/still/map_sdk?layer=vector&size=256&x={x}&y={y}&z={z}"
-                attribution='© Mappls, CE Info Systems'
-                maxZoom={19}
               />
             </LayersControl.BaseLayer>
             <LayersControl.BaseLayer name="🛰️ Bhuvan Satellite (ISRO)">

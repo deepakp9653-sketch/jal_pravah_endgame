@@ -318,12 +318,21 @@ export default function FloodMap3D() {
               material: new Cesium.ColorMaterialProperty(
                 new Cesium.CallbackProperty(() => {
                   const rain = window._currentRainfallMM || 0;
-                  const alpha = Math.min(0.8, 0.3 + (rain / 400) * 0.5);
-                  return Cesium.Color.fromCssColorString('#1d4ed8').withAlpha(alpha);
+                  
+                  // AI Predictor Intensity Colors
+                  let colorHex = '#10B981'; // Green (Safe / Minor logging)
+                  if (rain >= 100) {
+                    colorHex = '#EF4444'; // Red (Critical Depth)
+                  } else if (rain >= 30) {
+                    colorHex = '#F59E0B'; // Yellow (Moderate Risk)
+                  }
+                  
+                  const alpha = Math.min(0.8, 0.4 + (rain / 250) * 0.4);
+                  return Cesium.Color.fromCssColorString(colorHex).withAlpha(alpha);
                 }, false)
               ),
               outline: true,
-              outlineColor: Cesium.Color.fromCssColorString('#60a5fa').withAlpha(0.6),
+              outlineColor: Cesium.Color.fromCssColorString('#ffffff').withAlpha(0.6),
             }
           });
           waterEntityRef.current.push(entity);

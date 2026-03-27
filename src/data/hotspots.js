@@ -2,6 +2,23 @@
 // Coordinates are approximate centroids for each location
 
 export const hotspots = [
+  // === NEW CRITICAL / HIGH RISK ADDITIONS (Underpasses & River Banks) ===
+  { id: 260, name: "Kashmere Gate Metro Underpass", lat: 28.6665, lng: 77.2300, district: "Central", risk: "critical", type: "waterlogging", description: "Severe waterlogging during heavy rain" },
+  { id: 261, name: "Zakhira Underpass", lat: 28.6580, lng: 77.1650, district: "West", risk: "critical", type: "waterlogging", description: "Water accumulation blocks traffic completely" },
+  { id: 262, name: "Azadpur Mandi Underpass", lat: 28.7150, lng: 77.1720, district: "North West", risk: "high", type: "waterlogging", description: "Drainage failure leads to 3ft water" },
+  { id: 263, name: "Prahladpur Underpass", lat: 28.5080, lng: 77.2950, district: "South East", risk: "critical", type: "waterlogging", description: "Fatal flooding hotspot" },
+  { id: 264, name: "Moolchand Underpass", lat: 28.5645, lng: 77.2355, district: "South", risk: "high", type: "waterlogging", description: "Recurring urban flooding location" },
+  { id: 265, name: "Ramsingh Nagar (Yamuna Plains)", lat: 28.6400, lng: 77.2550, district: "East", risk: "critical", type: "embankment", description: "River flood plain settlement" },
+  { id: 266, name: "Batla House River Bank", lat: 28.5630, lng: 77.2900, district: "South East", risk: "high", type: "embankment", description: "Vulnerable to Yamuna overflow" },
+  { id: 267, name: "Mayur Vihar Ph-1 Extension", lat: 28.6010, lng: 77.2920, district: "East", risk: "high", type: "flood_2023", description: "Low-lying floodplain adjacent housing" },
+  { id: 268, name: "Okhla Barrage Downstream", lat: 28.5480, lng: 77.3100, district: "South East", risk: "critical", type: "embankment", description: "High risk during water release" },
+  { id: 269, name: "Wazirabad Barrage Catchment", lat: 28.7120, lng: 77.2320, district: "North", risk: "critical", type: "embankment", description: "Primary Yamuna breach risk zone" },
+  { id: 270, name: "Karol Bagh Drainage Choke", lat: 28.6520, lng: 77.1880, district: "Central", risk: "moderate", type: "waterlogging", description: "Storm water drain backflow" },
+  { id: 271, name: "RK Puram Sector 12 Dip", lat: 28.5620, lng: 77.1750, district: "New Delhi", risk: "high", type: "waterlogging", description: "Topographical depression floods rapidly" },
+  { id: 272, name: "Dwarka Sector 8 Underpass", lat: 28.5720, lng: 77.0680, district: "South West", risk: "high", type: "waterlogging", description: "Poor pump infrastructure" },
+  { id: 273, name: "Nangloi Najafgarh Road", lat: 28.6650, lng: 77.0500, district: "West", risk: "moderate", type: "waterlogging", description: "Sewer overflow during monsoons" },
+  { id: 274, name: "ITO Intersection", lat: 28.6280, lng: 77.2420, district: "Central", risk: "critical", type: "waterlogging", description: "Drain 12 backflow causes severe flooding" },
+
   // === CRITICAL VULNERABLE POINTS (River Yamuna Embankments) ===
   { id: 1, name: "Dahisara Bund (U/S of RME)", lat: 28.8100, lng: 77.1700, district: "North", risk: "critical", type: "embankment", description: "Upstream of Right Marginal Embankment, maintained by Haryana Irrigation" },
   { id: 2, name: "Shank No.7 at RD-3685m of RME", lat: 28.7800, lng: 77.2200, district: "North", risk: "critical", type: "embankment", description: "Vulnerable shank point on Right Marginal Embankment" },
